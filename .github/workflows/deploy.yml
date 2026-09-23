@@ -1,0 +1,99 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - name: Resolve LFS pointers in public/imgs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - << 'PYEOF'
+          import os, json, urllib.request, re, pathlib
+
+          token = os.environ['GITHUB_TOKEN']
+          repo = 'uxteambehsazan-commits/team-arena'
+          # Scan all LFS-pointer files under public/
+          imgs_dir = pathlib.Path('public')
+
+          objects = []
+          paths = {}
+          for f in imgs_dir.rglob('*'):
+              if not f.is_file(): continue
+              content = f.read_bytes()
+              if content[:7] == b'version':
+                  text = content.decode()
+                  oid = re.search(r'oid sha256:([0-9a-f]+)', text).group(1)
+                  size = int(re.search(r'size (\d+)', text).group(1))
+                  objects.append({'oid': oid, 'size': size})
+                  paths[oid] = f
+                  print(f'Found LFS pointer: {f.name} oid={oid[:12]}')
+
+          if not objects:
+              print('No LFS pointers found — skipping')
+              exit(0)
+
+          # Batch request download URLs
+          payload = json.dumps({'operation': 'download', 'transfers': ['basic'], 'objects': objects}).encode()
+          req = urllib.request.Request(
+              f'https://github.com/{repo}.git/info/lfs/objects/batch',
+              data=payload,
+              headers={
+                  'Authorization': f'Bearer {token}',
+                  'Content-Type': 'application/vnd.git-lfs+json',
+                  'Accept': 'application/vnd.git-lfs+json',
+              }
+          )
+          resp = json.loads(urllib.request.urlopen(req).read())
+
+          for obj in resp.get('objects', []):
+              oid = obj['oid']
+              href = obj['actions']['download']['href']
+              header = obj['actions']['download'].get('header', {})
+              dl_req = urllib.request.Request(href, headers=header)
+              data = urllib.request.urlopen(dl_req).read()
+              outpath = paths[oid]
+              outpath.write_bytes(data)
+              print(f'Downloaded {outpath.name}: {len(data)} bytes')
+          PYEOF
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+        env:
+          VITE_BASE: /team-arena/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

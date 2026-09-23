@@ -1,0 +1,10 @@
+{
+  "description": "Engage in local multiplayer fun with 3-8 players on one device, featuring real turns, timers, scoring, and automatic turn progression for an interactive gaming experience.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

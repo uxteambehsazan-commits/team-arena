@@ -1,0 +1,319 @@
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@600;700;800;900&display=swap');
+@import 'tailwindcss';
+
+@font-face {
+  font-family: 'IranSans';
+  src: url('https://cdn.jsdelivr.net/gh/rastikerdar/iran-sans@v1.3/fonts/woff2/IRANSansWeb.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/rastikerdar/iran-sans@v1.3/fonts/woff/IRANSansWeb.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IranSans';
+  src: url('https://cdn.jsdelivr.net/gh/rastikerdar/iran-sans@v1.3/fonts/woff2/IRANSansWeb_Medium.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/rastikerdar/iran-sans@v1.3/fonts/woff/IRANSansWeb_Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IranSans';
+  src: url('https://cdn.jsdelivr.net/gh/rastikerdar/iran-sans@v1.3/fonts/woff2/IRANSansWeb_Bold.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/rastikerdar/iran-sans@v1.3/fonts/woff/IRANSansWeb_Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IranSans';
+  src: url('https://cdn.jsdelivr.net/gh/rastikerdar/iran-sans@v1.3/fonts/woff2/IRANSansWeb_Black.woff2') format('woff2'),
+       url('https://cdn.jsdelivr.net/gh/rastikerdar/iran-sans@v1.3/fonts/woff/IRANSansWeb_Black.woff') format('woff');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-persian: 'IranSans', sans-serif;
+  --font-display: 'IranSans', 'Exo 2', sans-serif;
+  /* Behsazan Mellat brand */
+  --color-bm-red:    #CC2229;
+  --color-bm-red-dk: #9e1a20;
+  --color-bm-red-lt: #e84249;
+  --color-bm-gray:   #6D6E71;
+  --color-bm-gray-lt:#9a9b9e;
+  /* Game surfaces */
+  --color-gbg:   #111112;
+  --color-gpanel:#1a1a1c;
+  --color-gcard: #222224;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #111112;
+  color: #fff;
+  font-family: 'IranSans', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  direction: rtl;
+  height: 100%;
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+#root {
+  height: 100dvh;
+  /* On iOS with viewport-fit=cover, extend full height and let each screen handle safe areas */
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CC2229; border-radius: 2px; }
+
+@keyframes pop-in {
+  0%   { transform: scale(0) rotate(-10deg); opacity: 0; }
+  70%  { transform: scale(1.15) rotate(3deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+@keyframes score-fly {
+  0%   { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-60px) scale(1.4); opacity: 0; }
+}
+@keyframes glow-pulse {
+  0%,100% { box-shadow: 0 0 12px 2px currentColor; }
+  50%      { box-shadow: 0 0 28px 8px currentColor; }
+}
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
+}
+@keyframes slide-up {
+  from { transform: translateY(30px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes slide-in-right {
+  from { transform: translateX(60px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes reveal-big {
+  0%   { transform: scale(0.3) rotate(-20deg); opacity: 0; }
+  60%  { transform: scale(1.2) rotate(5deg); }
+  100% { transform: scale(1)   rotate(0deg); opacity: 1; }
+}
+@keyframes confetti-fall {
+  0%   { transform: translateY(-10px) rotate(0deg);   opacity: 1; }
+  100% { transform: translateY(110vh)  rotate(720deg); opacity: 0; }
+}
+@keyframes timer-warning {
+  0%,100% { color: #CC2229; transform: scale(1); }
+  50%      { color: #e84249; transform: scale(1.1); }
+}
+@keyframes bg-shift {
+  0%   { background-position: 0%   50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
+}
+@keyframes rank-move {
+  0%   { transform: scale(1.05); background: rgba(204,34,41,0.15); }
+  100% { transform: scale(1);    background: transparent; }
+}
+@keyframes slide-in-left {
+  from { transform: translateX(-70px); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+@keyframes art-float {
+  0%,100% { transform: translateY(0px) scale(1); }
+  25%      { transform: translateY(-8px) scale(1.02); }
+  75%      { transform: translateY(6px)  scale(0.99); }
+}
+@keyframes fade-up {
+  from { transform: translateY(18px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes red-pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+
+/* Home screen animations */
+@keyframes shooting-star {
+  0%   { transform: translate(0, 0)        rotate(-42deg); opacity: 0;   }
+  6%   { transform: translate(-18px, 8px)  rotate(-40deg); opacity: 1;   }
+  25%  { transform: translate(-65px, 35px) rotate(-36deg); opacity: 0.9; }
+  50%  { transform: translate(-130px,85px) rotate(-28deg); opacity: 0.7; }
+  75%  { transform: translate(-195px,145px)rotate(-18deg); opacity: 0.35;}
+  100% { transform: translate(-250px,200px)rotate(-8deg);  opacity: 0;   }
+}
+@keyframes home-dot-float {
+  0%,100% { transform: translateY(0) scale(1); opacity: 0.7; }
+  50%     { transform: translateY(-18px) scale(1.15); opacity: 0.25; }
+}
+@keyframes home-spin-border {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes title-3d-float {
+  0%,100% { transform: translateY(0) perspective(600px) rotateX(0deg); }
+  50%     { transform: translateY(-5px) perspective(600px) rotateX(2deg); }
+}
+@keyframes home-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-pop-in        { animation: pop-in 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+.animate-shake         { animation: shake 0.4s ease; }
+.animate-score-fly     { animation: score-fly 0.8s ease forwards; }
+.animate-glow-pulse    { animation: glow-pulse 1.2s ease-in-out infinite; }
+.animate-float         { animation: float 3s ease-in-out infinite; }
+.animate-slide-up      { animation: slide-up 0.4s ease forwards; }
+.animate-slide-in-right{ animation: slide-in-right 0.4s ease forwards; }
+.animate-slide-in-left { animation: slide-in-left 0.4s ease forwards; }
+.animate-reveal-big    { animation: reveal-big 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+.animate-timer-warning { animation: timer-warning 0.5s ease-in-out infinite; }
+.animate-rank-move     { animation: rank-move 0.8s ease; }
+.animate-art-float     { animation: art-float 4s ease-in-out infinite; }
+.animate-fade-up       { animation: fade-up 0.35s ease forwards; }
+
+@keyframes charFloat {
+  0%,100% { transform: translateY(0px) rotate(0deg); }
+  30%     { transform: translateY(-10px) rotate(0.5deg); }
+  70%     { transform: translateY(-6px) rotate(-0.5deg); }
+}
+@keyframes pedestalPulse {
+  0%,100% { opacity: 0.6; transform: scaleX(1); }
+  50%     { opacity: 1; transform: scaleX(1.08); }
+}
+@keyframes ctaBreathe {
+  0%,100% { transform: scale(1); box-shadow: 0 4px 24px rgba(168,85,247,0.5); }
+  50%     { transform: scale(1.015); box-shadow: 0 6px 36px rgba(168,85,247,0.8); }
+}
+@keyframes ctaBreathePurple {
+  0%,100% { box-shadow: 0 4px 24px rgba(168,85,247,0.4); }
+  50%     { box-shadow: 0 6px 40px rgba(168,85,247,0.75); }
+}
+@keyframes modeCardPop {
+  0%   { transform: scale(0.94); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes ripple {
+  0%   { transform: scale(0); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+@keyframes lobbyFloat {
+  0%,100% { transform: translateY(0px); }
+  50%     { transform: translateY(-6px); }
+}
+@keyframes countdownPop {
+  0%   { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Background: dark charcoal with subtle red gradient */
+.game-bg {
+  background: linear-gradient(135deg, #0e0e0f 0%, #181618 40%, #1a1010 100%);
+  background-size: 400% 400%;
+  animation: bg-shift 10s ease infinite;
+}
+
+/* Neon borders — now brand-red */
+.neon-border-red    { box-shadow: 0 0 12px #CC2229, inset 0 0 12px rgba(204,34,41,0.1); border-color: #CC2229; }
+.neon-border-gray   { box-shadow: 0 0 8px #6D6E71,  inset 0 0 8px  rgba(109,110,113,0.1); border-color: #6D6E71; }
+/* kept for backward compat in mission components */
+.neon-border-cyan   { box-shadow: 0 0 12px #CC2229, inset 0 0 12px rgba(204,34,41,0.1); border-color: #CC2229; }
+.neon-border-purple { box-shadow: 0 0 12px #CC2229, inset 0 0 12px rgba(204,34,41,0.1); border-color: #CC2229; }
+.neon-border-yellow { box-shadow: 0 0 12px #ffd60a, inset 0 0 12px rgba(255,214,10,0.1); border-color: #ffd60a; }
+
+/* Panel — dark gray, red border hint */
+.glass-panel {
+  background: rgba(26,26,28,0.85);
+  backdrop-filter: blur(12px);
+  border-width: 1px;
+  border-style: solid;
+  border-color: rgba(204,34,41,0.25);
+}
+
+.btn-game {
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-game:hover  { transform: scale(1.05); }
+.btn-game:active { transform: scale(0.96); }
+
+/* Memory card flip */
+.card-flip { perspective: 600px; }
+.card-flip-inner {
+  transition: transform 0.4s;
+  transform-style: preserve-3d;
+  position: relative;
+}
+.card-flip-inner.flipped { transform: rotateY(180deg); }
+.card-face {
+  backface-visibility: hidden;
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.card-back  { backface-visibility: hidden; }
+.card-front { transform: rotateY(180deg); }
+
+/* Pop-in animation for feedback flashes */
+@keyframes pop-in {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.animate-pop-in { animation: pop-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+/* Behsazan logo strip at top */
+.bm-header-bar {
+  border-bottom: 2px solid #CC2229;
+}
+
+/* ── Avatar aura pulse ── */
+@keyframes avatar-aura-pulse {
+  0%,100% { opacity: 0.5; transform: scale(1); }
+  50%     { opacity: 1;   transform: scale(1.15); }
+}
+@keyframes avatar-aura-sweep {
+  0%   { transform: rotate(0deg); opacity: 0.6; }
+  50%  { opacity: 1; }
+  100% { transform: rotate(360deg); opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-aura { animation: none !important; }
+}
+
+/* ── Bottom sheet slide up ── */
+@keyframes sheet-slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Character stage float ── */
+@keyframes char-stage-float {
+  0%,100% { transform: translateY(0px); }
+  40%     { transform: translateY(-10px); }
+  70%     { transform: translateY(-6px); }
+}
+
+/* ── Profile carousel active glow ── */
+@keyframes carousel-char-glow {
+  0%,100% { filter: brightness(1) drop-shadow(0 0 18px var(--char-accent)); }
+  50%     { filter: brightness(1.08) drop-shadow(0 0 32px var(--char-accent)); }
+}

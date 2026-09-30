@@ -289,8 +289,10 @@ export default function App() {
         />
       )}
 
-      {/* Admin icon moved into Home.tsx — shown only on main home step */}
-      <NotificationCenter />
+      {/* Notification bell only on Home screen */}
+      {!soloGameId && !behsazaniSession && state.phase === 'HOME' && !session && (
+        <NotificationCenter />
+      )}
     </div>
   )
 }

@@ -58,6 +58,9 @@ type GameEntry = {
   missionId?: string
   behsazaniId?: string
   soloGameId?: string
+  localSoloGameId?: string   // soloGameId used only when local_device mode is selected
+  localMinPlayers?: number   // min players for local mode (derived from mission constants)
+  localMaxPlayers?: number   // max players for local mode
   name: string; desc: string
   art: string; color: string; type: string; tab: 'general' | 'behsazan'
   supportedModes: PrimaryMode[]
@@ -70,12 +73,12 @@ const GAMES_DATA: GameEntry[] = [
   /* ── بازی‌های عمومی ── */
   { key: 'b-hunt',       behsazaniId: 'behsazani_hunt',                tab: 'behsazan', color: '#a855f7', type: 'آنلاین',      art: A['b-hunt'],       name: 'شکار بهسازانی',        desc: 'جاسازی کن یا پیدا کن — هر بازیکن دستگاه خودش!',       supportedModes: ['online_group'] },
   { key: 'g-namefamily', tab: 'general', color: '#06b6d4', type: 'آنلاین گروهی', art: A['g-namefamily'], name: 'اسم‌فامیل', desc: 'با حرف داده‌شده جواب بده — گروهی آنلاین با رأی‌گیری بازیکنان!', supportedModes: ['online_group'] },
-  { key: 'g-speed',      missionId: 'SPEED',        tab: 'general',   color: '#f97316', type: 'سرعتی',      art: A['g-speed'],      name: 'حدس بزن',              desc: 'با سرعت کلمه رو از روی توضیحات حدس بزن!',              supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
-  { key: 'g-oneword',    missionId: 'ONE_WORD',     tab: 'general',   color: '#ffd60a', type: 'همزمان',     art: A['g-oneword'],    name: 'یک کلمه، چند سرنخ',   desc: 'با یک کلمه سرنخ بده تا تیمت حدس بزنه!',                supportedModes: ['online_group', 'local_device'] },
-  { key: 'g-final',      missionId: 'FINAL',        tab: 'general',   color: '#CC2229', type: 'استراتژیک',  art: A['g-final'],      name: 'دوز — نبرد قلمرو',     desc: 'میدان نبرد رو تصرف کن و حریف رو شکست بده!',            supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
-  { key: 'g-logic',      missionId: 'LOGIC',        tab: 'general',   color: '#3b82f6', type: 'نوبتی',      art: A['g-logic'],      name: 'کلمه ممنوعه',          desc: 'کلمه رو توضیح بده ولی از ممنوعه‌ها استفاده نکن!',      supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
-  { key: 'g-fastest',    missionId: 'FASTEST',      tab: 'general',   color: '#ef4444', type: 'همزمان',     art: A['g-fastest'],    name: 'بازی سرعتی نهایی',    desc: 'سریع‌ترین انگشت رو داری؟ اثبات کن!',                   supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
-  { key: 'g-team',       missionId: 'TEAM',         tab: 'general',   color: '#22c55e', type: 'تیمی',       art: A['g-team'],       name: 'چشمک',                 desc: 'با چشمک تیمت رو راهنمایی کن و امتیاز بگیر!',           supportedModes: ['online_group', 'local_device'] },
+  { key: 'g-speed',      missionId: 'SPEED',        tab: 'general',   color: '#f97316', type: 'سرعتی',      art: A['g-speed'],      name: 'حدس بزن',              desc: 'با سرعت کلمه رو از روی توضیحات حدس بزن!',              supportedModes: ['online_group', 'local_device', 'solo_cpu'], localMinPlayers: 2, localMaxPlayers: 2 },
+  { key: 'g-oneword',    missionId: 'ONE_WORD',     tab: 'general',   color: '#ffd60a', type: 'همزمان',     art: A['g-oneword'],    name: 'یک کلمه، چند سرنخ',   desc: 'با یک کلمه سرنخ بده تا تیمت حدس بزنه!',                supportedModes: ['online_group', 'local_device'], localMinPlayers: 2, localMaxPlayers: 2 },
+  { key: 'g-final',      missionId: 'FINAL',        tab: 'general',   color: '#CC2229', type: 'استراتژیک',  art: A['g-final'],      name: 'دوز — نبرد قلمرو',     desc: 'میدان نبرد رو تصرف کن و حریف رو شکست بده!',            supportedModes: ['online_group', 'local_device', 'solo_cpu'], localMinPlayers: 2, localMaxPlayers: 2 },
+  { key: 'g-logic',      missionId: 'LOGIC',        tab: 'general',   color: '#3b82f6', type: 'نوبتی',      art: A['g-logic'],      name: 'کلمه ممنوعه',          desc: 'کلمه رو توضیح بده ولی از ممنوعه‌ها استفاده نکن!',      supportedModes: ['online_group', 'local_device', 'solo_cpu'], localMinPlayers: 2, localMaxPlayers: 2 },
+  { key: 'g-fastest',    missionId: 'FASTEST',      tab: 'general',   color: '#ef4444', type: 'همزمان',     art: A['g-fastest'],    name: 'بازی سرعتی نهایی',    desc: 'سریع‌ترین انگشت رو داری؟ اثبات کن!',                   supportedModes: ['online_group', 'local_device', 'solo_cpu'], localMinPlayers: 2, localMaxPlayers: 2 },
+  { key: 'g-team',       missionId: 'TEAM',         tab: 'general',   color: '#22c55e', type: 'تیمی',       art: A['g-team'],       name: 'چشمک',                 desc: 'با چشمک تیمت رو راهنمایی کن و امتیاز بگیر!',           supportedModes: ['online_group', 'local_device'], localMinPlayers: 4, localMaxPlayers: 10, localSoloGameId: 'cheshmak' },
   /* ── بازی‌های آنلاین بهسازانی ── */
   { key: 'b-mafia',      behsazaniId: 'behsazani_mafia',               tab: 'behsazan', color: '#CC2229', type: 'نقش مخفی',    art: A['b-mafia'],      name: 'مافیای بهسازانی',     desc: 'مافیا رو پیدا کن قبل از اینکه دیر بشه!',               supportedModes: ['online_group'] },
   { key: 'b-spy',        behsazaniId: 'behsazani_spy',                 tab: 'behsazan', color: '#3b82f6', type: 'استنتاج',     art: A['b-spy'],        name: 'جاسوس',               desc: 'جاسوس کیه؟ مکان رو حدس بزن قبل از شناسایی!',          supportedModes: ['online_group', 'local_device'] },
@@ -556,7 +559,18 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
       return
     }
 
-    // Local device: require Player 2 name before starting
+    // Local device: games with localSoloGameId (e.g. چشمک needing 4+ players)
+    // bypass the 2-player setup and go straight to their standalone component
+    if (primaryMode === 'local_device' && step === 'game-config') {
+      const localSoloKey = selectedGameKeys.find(k => !!GAMES_DATA.find(g => g.key === k)?.localSoloGameId)
+      const localSoloGame = localSoloKey ? GAMES_DATA.find(g => g.key === localSoloKey) : null
+      if (localSoloGame?.localSoloGameId && onSoloGame) {
+        onSoloGame(localSoloGame.localSoloGameId)
+        return
+      }
+    }
+
+    // Local device: require Player 2 name before starting (for 2-player games)
     if (primaryMode === 'local_device' && step === 'game-config') {
       setPlayer2Name('')
       setStep('player2-setup')

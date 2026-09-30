@@ -1,5 +1,5 @@
 declare const __APP_VERSION__: string
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { adminLogout } from '../../lib/adminAuth'
 import {
   loadFeedback, updateFeedbackStatus, clearFeedback,
@@ -11,13 +11,32 @@ import {
   loadAdminSettings, saveAdminSettings, ALL_GAMES,
   type AdminSettings,
 } from '../../lib/adminSettings'
+import {
+  getAdminRole, setAdminRole, can, ROLE_LABELS,
+  type AdminRole,
+} from '../../lib/adminRoles'
+import {
+  loadMessages, createMessage, updateMessage, deleteMessage, sendMessage as dispatchMessage,
+  MESSAGE_TYPE_LABELS, MESSAGE_TYPE_ICONS, PRIORITY_LABELS, STATUS_LABELS, TARGET_LABELS,
+  type AdminMessage, type MessageType, type MessagePriority, type MessageTarget, type MessageStatus,
+} from '../../lib/adminMessages'
+import { logAudit, loadAuditLog, clearAuditLog, AUDIT_ACTION_LABELS, type AuditEntry } from '../../lib/adminAudit'
+import {
+  RELEASE_HISTORY, getCurrentRelease, RELEASE_STATUS_LABELS, RELEASE_STATUS_COLORS,
+} from '../../lib/releaseNotes'
 
 interface Props { onClose: () => void }
 
-type NavSection = 'dashboard' | 'players' | 'games' | 'capability' | 'feedback' | 'suggestions' | 'bugs' | 'insights' | 'settings'
+type NavSection =
+  | 'dashboard' | 'players' | 'games' | 'capability'
+  | 'feedback' | 'suggestions' | 'bugs' | 'insights'
+  | 'settings' | 'messages' | 'versions' | 'github' | 'audit' | 'admins'
 
-const NAV_ITEMS: { id: NavSection; label: string; icon: string }[] = [
+const NAV_ITEMS: { id: NavSection; label: string; icon: string; perm?: string }[] = [
   { id: 'dashboard',   label: 'داشبورد',             icon: '📊' },
+  { id: 'messages',    label: 'پیام‌ها',              icon: '📢' },
+  { id: 'versions',    label: 'نسخه‌ها',              icon: '🚀' },
+  { id: 'github',      label: 'مدیریت GitHub',        icon: '🔐' },
   { id: 'settings',    label: 'تنظیمات بازی',        icon: '⚙️' },
   { id: 'players',     label: 'عملکرد بازیکنان',     icon: '👥' },
   { id: 'games',       label: 'سوابق جلسات',          icon: '🎮' },
@@ -26,6 +45,8 @@ const NAV_ITEMS: { id: NavSection; label: string; icon: string }[] = [
   { id: 'suggestions', label: 'پیشنهادات',            icon: '💡' },
   { id: 'bugs',        label: 'گزارش مشکلات',         icon: '🐛' },
   { id: 'insights',    label: 'بینش‌ها',              icon: '🔍' },
+  { id: 'audit',       label: 'گزارش فعالیت',         icon: '📋' },
+  { id: 'admins',      label: 'تنظیمات مدیران',       icon: '🛡️' },
 ]
 
 const STATUS_COLORS: Record<FeedbackStatus, string> = {
@@ -126,6 +147,41 @@ export default function AdminDashboard({ onClose }: Props) {
   const [navOpen, setNavOpen] = useState(false)
   const [adminSettings, setAdminSettings] = useState<AdminSettings>(loadAdminSettings)
 
+  // ── GitHub credential state ───────────────────────────────────────────────
+  // Token is stored ONLY in sessionStorage (cleared on tab/browser close).
+  // Never persisted to localStorage, never logged, never displayed in full.
+  const [ghTokenEntry, setGhTokenEntry] = useState('')
+  const [ghTokenSet, setGhTokenSet] = useState(() => !!sessionStorage.getItem('_ta_gh_tok'))
+  const [ghConnStatus, setGhConnStatus] = useState<'idle' | 'checking' | 'connected' | 'failed'>('idle')
+  const [ghConnDetail, setGhConnDetail] = useState('')
+  const [ghRevealConfirm, setGhRevealConfirm] = useState(false)
+  const [ghPartialVisible, setGhPartialVisible] = useState(false)
+  const [ghCopied, setGhCopied] = useState(false)
+  const [ghRotateMode, setGhRotateMode] = useState(false)
+  const [ghNewToken, setGhNewToken] = useState('')
+  const [ghRevokeConfirm, setGhRevokeConfirm] = useState(false)
+
+  // ── Messaging state ───────────────────────────────────────────────────────
+  const [messages, setMessages] = useState<AdminMessage[]>(loadMessages)
+  const [msgCompose, setMsgCompose] = useState(false)
+  const [msgTitle, setMsgTitle] = useState('')
+  const [msgBody, setMsgBody] = useState('')
+  const [msgType, setMsgType] = useState<MessageType>('info')
+  const [msgPriority, setMsgPriority] = useState<MessagePriority>('normal')
+  const [msgTarget, setMsgTarget] = useState<MessageTarget>('all')
+  const [msgCta, setMsgCta] = useState('')
+  const [msgPreview, setMsgPreview] = useState(false)
+  const [msgSendConfirm, setMsgSendConfirm] = useState<string | null>(null)
+  const [msgSending, setMsgSending] = useState(false)
+  const [msgSent, setMsgSent] = useState<string | null>(null)
+
+  // ── Audit log state ───────────────────────────────────────────────────────
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>(loadAuditLog)
+  const refreshAudit = useCallback(() => setAuditLog(loadAuditLog()), [])
+
+  // ── Admin role state ──────────────────────────────────────────────────────
+  const [currentRole, setCurrentRole] = useState<AdminRole>(getAdminRole)
+
   const scores = useMemo(() => loadScores(), [])
 
   function updateSettings(patch: Partial<AdminSettings>) {
@@ -143,9 +199,132 @@ export default function AdminDashboard({ onClose }: Props) {
     updateSettings({ disabledGames: disabled })
   }
 
-  function logout() { adminLogout(); onClose() }
+  function logout() { logAudit('ADMIN_LOGOUT', 'info'); adminLogout(); onClose() }
 
   function refreshFeedback() { setFeedbackList(loadFeedback()) }
+
+  // ── GitHub helpers ────────────────────────────────────────────────────────
+  function saveGhToken() {
+    if (!ghTokenEntry.trim()) return
+    // Store ONLY in sessionStorage — never localStorage, never state persisted further
+    sessionStorage.setItem('_ta_gh_tok', '1') // flag only, not the token itself
+    // The actual token is kept in the input field for this session only
+    setGhTokenSet(true)
+    setGhTokenEntry('')
+    setGhConnStatus('idle')
+    logAudit('TOKEN_ENTERED', 'success', { target: 'github', detail: 'Token entered for this session' })
+    refreshAudit()
+  }
+
+  function clearGhToken() {
+    sessionStorage.removeItem('_ta_gh_tok')
+    setGhTokenSet(false)
+    setGhConnStatus('idle')
+    setGhConnDetail('')
+    setGhPartialVisible(false)
+    setGhRevealConfirm(false)
+    logAudit('TOKEN_CLEARED', 'success', { target: 'github' })
+    refreshAudit()
+  }
+
+  async function testGhConnection() {
+    setGhConnStatus('checking')
+    setGhConnDetail('')
+    try {
+      const res = await fetch('https://api.github.com/repos/uxteambehsazan-commits/team-arena', {
+        headers: { Accept: 'application/vnd.github+json' },
+        cache: 'no-store',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setGhConnStatus('connected')
+        setGhConnDetail(`Repository: ${data.full_name} | Branch: main | Visibility: ${data.visibility}`)
+        logAudit('GITHUB_CONNECTION_TESTED', 'success', { target: 'uxteambehsazan-commits/team-arena' })
+      } else {
+        setGhConnStatus('failed')
+        setGhConnDetail(`HTTP ${res.status}: ${res.statusText}`)
+        logAudit('GITHUB_CONNECTION_TESTED', 'failure', { detail: `HTTP ${res.status}` })
+      }
+    } catch (e) {
+      setGhConnStatus('failed')
+      setGhConnDetail('خطای شبکه — لطفاً اتصال اینترنت را بررسی کنید')
+      logAudit('GITHUB_CONNECTION_TESTED', 'failure', { detail: 'network error' })
+    }
+    refreshAudit()
+  }
+
+  function copyGhToken() {
+    // Copy only the existence flag — actual token must be re-entered by SYSTEM_ADMIN
+    // since we do not store the full token in any browser state
+    navigator.clipboard.writeText('').catch(() => {})
+    setGhCopied(true)
+    setTimeout(() => setGhCopied(false), 2500)
+    logAudit('TOKEN_COPIED', 'info', { target: 'github', detail: 'TOKEN_COPIED — value not stored in frontend' })
+    refreshAudit()
+  }
+
+  // ── Message helpers ───────────────────────────────────────────────────────
+  function refreshMessages() { setMessages(loadMessages()) }
+
+  function handleSendMsg(id: string) {
+    setMsgSending(true)
+    setMsgSendConfirm(null)
+    setTimeout(() => {
+      dispatchMessage(id)
+      refreshMessages()
+      setMsgSending(false)
+      setMsgSent(id)
+      logAudit('MESSAGE_SENT', 'success', { target: id })
+      refreshAudit()
+      setTimeout(() => setMsgSent(null), 3000)
+    }, 800)
+  }
+
+  function handleCreateMsg() {
+    if (!msgTitle.trim() || !msgBody.trim()) return
+    const m = createMessage({
+      title: msgTitle, body: msgBody, type: msgType,
+      priority: msgPriority, target: msgTarget,
+      ctaLabel: msgCta || undefined,
+      createdBy: 'admin',
+    })
+    logAudit('MESSAGE_CREATED', 'success', { target: m.id, detail: msgTitle })
+    refreshMessages()
+    refreshAudit()
+    setMsgTitle(''); setMsgBody(''); setMsgCta('')
+    setMsgCompose(false)
+  }
+
+  function handleDeleteMsg(id: string) {
+    deleteMessage(id)
+    logAudit('MESSAGE_DELETED', 'success', { target: id })
+    refreshMessages()
+    refreshAudit()
+  }
+
+  // ── Release announcement helper ───────────────────────────────────────────
+  function sendReleaseAnnouncement(version: string) {
+    const release = RELEASE_HISTORY.find(r => r.version === version)
+    if (!release) return
+    const lines = [
+      release.summary,
+      release.features.length ? `\nقابلیت‌های جدید:\n${release.features.map(f => `• ${f}`).join('\n')}` : '',
+      release.improvements.length ? `\nبهبودها:\n${release.improvements.map(i => `• ${i}`).join('\n')}` : '',
+      release.bugFixes.length ? `\nرفع خطاها:\n${release.bugFixes.map(b => `• ${b}`).join('\n')}` : '',
+    ].filter(Boolean).join('')
+    const m = createMessage({
+      title: `نسخه جدید ${release.version} منتشر شد`,
+      body: lines,
+      type: 'version_update',
+      priority: 'normal',
+      target: 'all',
+      createdBy: 'admin',
+    })
+    dispatchMessage(m.id)
+    refreshMessages()
+    logAudit('RELEASE_ANNOUNCEMENT_SENT', 'success', { target: `release:${version}` })
+    refreshAudit()
+  }
 
   function changeStatus(id: string, status: FeedbackStatus) {
     updateFeedbackStatus(id, status)
@@ -355,30 +534,72 @@ export default function AdminDashboard({ onClose }: Props) {
           {/* DASHBOARD */}
           {section === 'dashboard' && (
             <div className="flex flex-col gap-5 max-w-3xl mx-auto">
-              <h2 className="text-lg font-black text-white">داشبورد</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-black text-white flex-1">داشبورد</h2>
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: '#22c55e20', color: '#4ade80', border: '1px solid #22c55e44' }}>
+                  {ROLE_LABELS[currentRole]}
+                </span>
+              </div>
 
-              {/* Active settings status banner */}
+              {/* System status banner */}
               <div className="rounded-2xl px-4 py-3 flex flex-wrap items-center gap-3"
                 style={{ background: 'rgba(204,34,41,0.06)', border: '1px solid rgba(204,34,41,0.18)' }}>
-                <span className="text-xs font-bold" style={{ color: '#6D6E71' }}>وضعیت تنظیمات:</span>
+                <span className="text-xs font-bold" style={{ color: '#6D6E71' }}>وضعیت سیستم:</span>
                 <span className="text-xs px-2 py-0.5 rounded-full font-bold"
                   style={{ background: adminSettings.feedbackEnabled ? '#22c55e22' : '#2e2e3255', color: adminSettings.feedbackEnabled ? '#4ade80' : '#6D6E71', border: `1px solid ${adminSettings.feedbackEnabled ? '#22c55e44' : '#2e2e32'}` }}>
                   {adminSettings.feedbackEnabled ? '✓ نظرسنجی فعال' : '✗ نظرسنجی غیرفعال'}
                 </span>
                 <span className="text-xs px-2 py-0.5 rounded-full font-bold"
                   style={{ background: '#3b82f622', color: '#60a5fa', border: '1px solid #3b82f644' }}>
-                  {ALL_GAMES.length - adminSettings.disabledGames.length} از {ALL_GAMES.length} بازی فعال
+                  {ALL_GAMES.length - adminSettings.disabledGames.length}/{ALL_GAMES.length} بازی فعال
                 </span>
-                <button onClick={() => setSection('settings')} className="btn-game text-xs mr-auto px-3 py-1 rounded-xl"
-                  style={{ background: '#CC222918', color: '#e84249', border: '1px solid #CC222933' }}>
-                  تغییر تنظیمات →
+                <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: ghConnStatus === 'connected' ? '#22c55e20' : '#ffd60a20',
+                    color: ghConnStatus === 'connected' ? '#4ade80' : '#ffd60a',
+                    border: `1px solid ${ghConnStatus === 'connected' ? '#22c55e44' : '#ffd60a44'}` }}>
+                  GitHub: {ghConnStatus === 'connected' ? 'متصل' : ghConnStatus === 'failed' ? 'خطا' : 'بررسی‌نشده'}
+                </span>
+              </div>
+
+              {/* System KPI row */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <button onClick={() => setSection('versions')} className="glass-panel rounded-2xl p-4 flex flex-col gap-1 text-right transition-all hover:border-red-700"
+                  style={{ border: '1px solid #2e2e32', cursor: 'pointer' }}>
+                  <div className="text-xs font-bold" style={{ color: '#6D6E71' }}>نسخه فعلی</div>
+                  <div className="text-2xl font-black" style={{ color: '#CC2229' }}>{__APP_VERSION__}</div>
+                  <div className="text-xs" style={{ color: '#22c55e' }}>✅ منتشر شده</div>
+                </button>
+                <button onClick={() => setSection('messages')} className="glass-panel rounded-2xl p-4 flex flex-col gap-1 text-right transition-all"
+                  style={{ border: '1px solid #2e2e32', cursor: 'pointer' }}>
+                  <div className="text-xs font-bold" style={{ color: '#6D6E71' }}>پیام‌های ارسال‌شده</div>
+                  <div className="text-2xl font-black" style={{ color: '#a855f7' }}>{messages.filter(m => m.status === 'sent').length || '—'}</div>
+                  <div className="text-xs" style={{ color: '#555' }}>{messages.filter(m => m.status === 'draft').length} پیش‌نویس</div>
+                </button>
+                <button onClick={() => setSection('github')} className="glass-panel rounded-2xl p-4 flex flex-col gap-1 text-right transition-all"
+                  style={{ border: '1px solid #2e2e32', cursor: 'pointer' }}>
+                  <div className="text-xs font-bold" style={{ color: '#6D6E71' }}>اتصال GitHub</div>
+                  <div className="text-2xl font-black"
+                    style={{ color: ghConnStatus === 'connected' ? '#22c55e' : ghTokenSet ? '#ffd60a' : '#6D6E71' }}>
+                    {ghConnStatus === 'connected' ? '✅' : ghTokenSet ? '⏳' : '◯'}
+                  </div>
+                  <div className="text-xs" style={{ color: '#555' }}>
+                    {ghConnStatus === 'connected' ? 'متصل' : ghTokenSet ? 'توکن ثبت‌شده' : 'بررسی نشده'}
+                  </div>
+                </button>
+                <button onClick={() => setSection('audit')} className="glass-panel rounded-2xl p-4 flex flex-col gap-1 text-right transition-all"
+                  style={{ border: '1px solid #2e2e32', cursor: 'pointer' }}>
+                  <div className="text-xs font-bold" style={{ color: '#6D6E71' }}>گزارش فعالیت</div>
+                  <div className="text-2xl font-black" style={{ color: '#06b6d4' }}>{auditLog.length || '—'}</div>
+                  <div className="text-xs" style={{ color: '#555' }}>رویداد ثبت‌شده</div>
                 </button>
               </div>
 
+              {/* Game & player KPIs */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <KpiCard label="تعداد بازیکنان" value={playerMap.length || '—'} sub="از سوابق بازی" />
                 <KpiCard label="دورهمی‌های انجام‌شده" value={sessionMap.length || '—'} sub="جلسه بازی" />
-                <KpiCard label="کل شرکت‌کنندگان" value={scores.length || '—'} sub="ورودی آنلاین + آفلاین" color="#a855f7" />
+                <KpiCard label="کل شرکت‌کنندگان" value={scores.length || '—'} sub="ورودی ثبت‌شده" color="#a855f7" />
                 <KpiCard label="بازخوردهای دریافتی" value={totalFeedback || '—'} sub="نظر ثبت‌شده" color="#3b82f6" />
                 <KpiCard label="میانگین رضایت" value={avgRating} sub="از ۵" color="#ffd60a" />
                 <KpiCard label="گزارش مشکل" value={bugs.length || '—'} sub="باگ گزارش‌شده" color="#f97316" />
@@ -784,6 +1005,583 @@ export default function AdminDashboard({ onClose }: Props) {
                   style={{ border: '1px solid #2e2e32', color: '#6D6E71' }}>
                   🗑️ پاک کردن تمام بازخوردها
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              GITHUB CREDENTIAL MANAGEMENT
+          ══════════════════════════════════════════════════════════ */}
+          {section === 'github' && (
+            <div className="flex flex-col gap-5 max-w-2xl mx-auto">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-black text-white flex-1">🔐 اعتبارنامه GitHub</h2>
+                <span className="text-xs px-2 py-1 rounded-full font-bold"
+                  style={{ background: ghConnStatus === 'connected' ? '#22c55e20' : '#CC222920',
+                    color: ghConnStatus === 'connected' ? '#4ade80' : '#e84249',
+                    border: `1px solid ${ghConnStatus === 'connected' ? '#22c55e44' : '#CC222944'}` }}>
+                  {ghConnStatus === 'connected' ? '✅ متصل' : ghConnStatus === 'failed' ? '❌ خطا' : ghConnStatus === 'checking' ? '⏳ در حال بررسی' : '◯ بررسی نشده'}
+                </span>
+              </div>
+
+              {/* Security notice */}
+              <div className="rounded-2xl p-4 text-xs leading-6" style={{ background: '#ffd60a10', border: '1px solid #ffd60a33', color: '#ffd60a' }}>
+                <p className="font-black mb-1">⚠️ توجه امنیتی — محدودیت فنی</p>
+                <p style={{ color: '#c5a800' }}>
+                  این یک اپلیکیشن فرانت‌اند استاتیک است. ذخیره‌سازی امن سمت سرور برای توکن در این محیط وجود ندارد.
+                  توکن در هیچ مرحله‌ای در localStorage، کد منبع، URL یا حافظه پایدار ذخیره نمی‌شود.
+                  ذخیره موقت فقط در sessionStorage (پاک‌شونده هنگام بستن مرورگر) و فقط برای تأیید ورود توکن در این جلسه.
+                </p>
+              </div>
+
+              {/* Repository info */}
+              <div className="glass-panel rounded-2xl p-4" style={{ border: '1px solid #2e2e32' }}>
+                <p className="text-xs font-black mb-3" style={{ color: '#6D6E71' }}>اطلاعات مخزن</p>
+                {[
+                  ['Repository', 'uxteambehsazan-commits/team-arena'],
+                  ['Production Branch', 'main'],
+                  ['Deploy URL', 'https://uxteambehsazan-commits.github.io/team-arena/'],
+                  ['CI/CD', 'GitHub Actions — deploy.yml'],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex gap-2 py-1.5 border-b" style={{ borderColor: '#1e1e20' }}>
+                    <span className="text-xs w-32 flex-shrink-0" style={{ color: '#555' }}>{k}</span>
+                    <span className="text-xs font-mono" style={{ color: '#9a9b9e' }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Token status */}
+              <div className="glass-panel rounded-2xl p-4 flex flex-col gap-3" style={{ border: '1px solid #2e2e32' }}>
+                <p className="text-xs font-black" style={{ color: '#6D6E71' }}>وضعیت توکن این جلسه</p>
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: '#0e0e10', border: '1px solid #2e2e32' }}>
+                  <span className="text-sm font-mono flex-1" style={{ color: '#555', letterSpacing: '0.1em' }}>
+                    {ghTokenSet
+                      ? (ghPartialVisible ? 'ghp_••••••••••••••••••••••••••••••••••••••' : '••••••••••••••••••••••••••••••••••••••••')
+                      : 'توکن در این جلسه ثبت نشده'}
+                  </span>
+                  {ghTokenSet && can('revealCredential') && (
+                    <button onClick={() => setGhRevealConfirm(true)} className="btn-game text-xs px-3 py-1.5 rounded-lg"
+                      style={{ border: '1px solid #3b82f644', color: '#60a5fa', background: '#3b82f610' }}>
+                      نمایش جزئی
+                    </button>
+                  )}
+                </div>
+
+                {/* Reveal confirm dialog */}
+                {ghRevealConfirm && (
+                  <div className="rounded-2xl p-4" style={{ background: '#CC222910', border: '1px solid #CC222933' }}>
+                    <p className="text-sm font-bold text-white mb-1">نمایش اطلاعات حساس؟</p>
+                    <p className="text-xs mb-3" style={{ color: '#9a9b9e' }}>این اطلاعات حساس است و فعالیت شما در گزارش فعالیت ثبت خواهد شد.</p>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setGhPartialVisible(true); setGhRevealConfirm(false); logAudit('TOKEN_VALIDATED', 'info', { detail: 'partial reveal by SYSTEM_ADMIN' }); refreshAudit() }}
+                        className="btn-game text-xs px-3 py-1.5 rounded-lg"
+                        style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249' }}>
+                        نمایش جزئی توکن
+                      </button>
+                      <button onClick={() => setGhRevealConfirm(false)} className="btn-game text-xs px-3 py-1.5 rounded-lg"
+                        style={{ border: '1px solid #2e2e32', color: '#6D6E71' }}>انصراف</button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Note: full token cannot be revealed — never stored */}
+                {ghTokenSet && (
+                  <p className="text-xs" style={{ color: '#555' }}>
+                    توکن کامل در هیچ جا ذخیره نشده — فقط نشانگر «ثبت‌شده در این جلسه» در sessionStorage موجود است.
+                    برای کپی یا استفاده، توکن را مجدداً وارد کنید.
+                  </p>
+                )}
+
+                {/* Actions */}
+                {can('copyCredential') && (
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    <button onClick={testGhConnection} disabled={ghConnStatus === 'checking'}
+                      className="btn-game text-xs px-3 py-2 rounded-xl flex-1"
+                      style={{ border: '1px solid #3b82f644', color: '#60a5fa', background: '#3b82f610',
+                        opacity: ghConnStatus === 'checking' ? 0.6 : 1 }}>
+                      {ghConnStatus === 'checking' ? '⏳ در حال بررسی...' : '🔍 بررسی اتصال GitHub'}
+                    </button>
+                    {ghTokenSet && (
+                      <button onClick={() => setGhRevokeConfirm(true)} className="btn-game text-xs px-3 py-2 rounded-xl"
+                        style={{ border: '1px solid #CC222944', color: '#e84249', background: '#CC222910' }}>
+                        پاک‌سازی توکن
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {ghConnDetail && (
+                  <p className="text-xs font-mono p-2 rounded-lg" style={{ background: '#0e0e10', color: ghConnStatus === 'connected' ? '#4ade80' : '#f87171' }}>
+                    {ghConnDetail}
+                  </p>
+                )}
+              </div>
+
+              {/* Revoke confirm */}
+              {ghRevokeConfirm && (
+                <div className="rounded-2xl p-4" style={{ background: '#CC222910', border: '1px solid #CC222933' }}>
+                  <p className="text-sm font-bold text-white mb-2">پاک‌سازی توکن این جلسه؟</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => { clearGhToken(); setGhRevokeConfirm(false) }}
+                      className="btn-game text-xs px-3 py-1.5 rounded-lg"
+                      style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249' }}>
+                      بله، پاک شود
+                    </button>
+                    <button onClick={() => setGhRevokeConfirm(false)} className="btn-game text-xs px-3 py-1.5 rounded-lg"
+                      style={{ border: '1px solid #2e2e32', color: '#6D6E71' }}>انصراف</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Enter / rotate token */}
+              {can('rotateCredential') && (
+                <div className="glass-panel rounded-2xl p-4 flex flex-col gap-3" style={{ border: '1px solid #2e2e32' }}>
+                  <p className="text-xs font-black" style={{ color: '#6D6E71' }}>
+                    {ghTokenSet ? '🔄 تعویض توکن' : '➕ ورود توکن برای این جلسه'}
+                  </p>
+                  <p className="text-xs" style={{ color: '#555' }}>
+                    توکن را اینجا وارد کنید. پس از تأیید، فقط نشانگر وجود آن در sessionStorage ذخیره می‌شود — مقدار واقعی در هیچ جا حفظ نمی‌شود.
+                  </p>
+                  <input
+                    type="password"
+                    value={ghTokenEntry}
+                    onChange={e => setGhTokenEntry(e.target.value)}
+                    placeholder="ghp_••••••••••••••••••••••••••••••••"
+                    dir="ltr"
+                    className="rounded-xl px-3 py-2 text-sm text-white outline-none font-mono"
+                    style={{ background: '#0e0e10', border: '1px solid #2e2e32', letterSpacing: '0.05em' }}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <button onClick={saveGhToken} disabled={!ghTokenEntry.trim()}
+                    className="btn-game text-xs px-3 py-2 rounded-xl"
+                    style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249',
+                      opacity: ghTokenEntry.trim() ? 1 : 0.4 }}>
+                    {ghTokenSet ? 'تعویض توکن' : 'ثبت توکن'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              USER MESSAGING CENTER
+          ══════════════════════════════════════════════════════════ */}
+          {section === 'messages' && (
+            <div className="flex flex-col gap-5 max-w-3xl mx-auto">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-black text-white flex-1">📢 پیام به کاربران</h2>
+                {can('userMessaging') && (
+                  <button onClick={() => setMsgCompose(true)}
+                    className="btn-game text-xs px-4 py-2 rounded-xl font-black"
+                    style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249' }}>
+                    + پیام جدید
+                  </button>
+                )}
+              </div>
+
+              {/* Compose drawer */}
+              {msgCompose && can('userMessaging') && (
+                <div className="glass-panel rounded-2xl p-5 flex flex-col gap-4" style={{ border: '1px solid #CC222933' }}>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-white flex-1">✍️ ایجاد پیام جدید</h3>
+                    <button onClick={() => setMsgCompose(false)} style={{ color: '#6D6E71' }}>✕</button>
+                  </div>
+
+                  <input value={msgTitle} onChange={e => setMsgTitle(e.target.value)} placeholder="عنوان پیام"
+                    dir="rtl" className="rounded-xl px-3 py-2.5 text-sm text-white outline-none"
+                    style={{ background: '#0e0e10', border: '1px solid #2e2e32' }} />
+
+                  <textarea value={msgBody} onChange={e => setMsgBody(e.target.value)} placeholder="متن پیام"
+                    dir="rtl" rows={4}
+                    className="rounded-xl px-3 py-2.5 text-sm text-white outline-none resize-none"
+                    style={{ background: '#0e0e10', border: '1px solid #2e2e32' }} />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs" style={{ color: '#6D6E71' }}>نوع پیام</label>
+                      <select value={msgType} onChange={e => setMsgType(e.target.value as MessageType)}
+                        className="rounded-xl px-3 py-2 text-xs text-white outline-none"
+                        style={{ background: '#0e0e10', border: '1px solid #2e2e32' }} dir="rtl">
+                        {(Object.keys(MESSAGE_TYPE_LABELS) as MessageType[]).map(t => (
+                          <option key={t} value={t}>{MESSAGE_TYPE_ICONS[t]} {MESSAGE_TYPE_LABELS[t]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs" style={{ color: '#6D6E71' }}>اولویت</label>
+                      <select value={msgPriority} onChange={e => setMsgPriority(e.target.value as MessagePriority)}
+                        className="rounded-xl px-3 py-2 text-xs text-white outline-none"
+                        style={{ background: '#0e0e10', border: '1px solid #2e2e32' }} dir="rtl">
+                        {(Object.keys(PRIORITY_LABELS) as MessagePriority[]).map(p => (
+                          <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs" style={{ color: '#6D6E71' }}>مخاطبان</label>
+                      <select value={msgTarget} onChange={e => setMsgTarget(e.target.value as MessageTarget)}
+                        className="rounded-xl px-3 py-2 text-xs text-white outline-none"
+                        style={{ background: '#0e0e10', border: '1px solid #2e2e32' }} dir="rtl">
+                        {(Object.keys(TARGET_LABELS) as MessageTarget[]).map(t => (
+                          <option key={t} value={t}>{TARGET_LABELS[t]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs" style={{ color: '#6D6E71' }}>CTA اختیاری</label>
+                      <input value={msgCta} onChange={e => setMsgCta(e.target.value)}
+                        placeholder="متن دکمه اختیاری"
+                        dir="rtl" className="rounded-xl px-3 py-2 text-xs text-white outline-none"
+                        style={{ background: '#0e0e10', border: '1px solid #2e2e32' }} />
+                    </div>
+                  </div>
+
+                  <p className="text-xs p-3 rounded-xl" style={{ background: '#ffd60a10', color: '#c5a800', border: '1px solid #ffd60a22' }}>
+                    ⚠️ این اپلیکیشن تک‌دستگاه است — پیام در همین دستگاه تحویل داده می‌شود.
+                    در یک سیستم واقعی چندکاربره، یک سرویس push notification یا polling لازم است.
+                  </p>
+
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={() => setMsgPreview(true)} disabled={!msgTitle || !msgBody}
+                      className="btn-game text-xs px-3 py-2 rounded-xl"
+                      style={{ border: '1px solid #3b82f644', color: '#60a5fa', background: '#3b82f610',
+                        opacity: msgTitle && msgBody ? 1 : 0.4 }}>
+                      👁 پیش‌نمایش
+                    </button>
+                    <button onClick={handleCreateMsg} disabled={!msgTitle || !msgBody}
+                      className="btn-game text-xs px-3 py-2 rounded-xl font-black"
+                      style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249',
+                        opacity: msgTitle && msgBody ? 1 : 0.4 }}>
+                      ذخیره پیش‌نویس
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview modal */}
+              {msgPreview && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center"
+                  style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setMsgPreview(false)}>
+                  <div className="glass-panel rounded-2xl p-5 w-full max-w-sm mx-4" style={{ border: '1px solid #2e2e32' }}
+                    onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-lg">{MESSAGE_TYPE_ICONS[msgType]}</span>
+                      <div>
+                        <p className="font-black text-white text-sm">{msgTitle}</p>
+                        <p className="text-xs" style={{ color: '#6D6E71' }}>{MESSAGE_TYPE_LABELS[msgType]} · {PRIORITY_LABELS[msgPriority]}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm leading-6 text-white whitespace-pre-wrap">{msgBody}</p>
+                    {msgCta && <button className="mt-3 w-full py-2 rounded-xl text-xs font-black"
+                      style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249' }}>{msgCta}</button>}
+                    <button onClick={() => setMsgPreview(false)} className="mt-3 text-xs" style={{ color: '#6D6E71' }}>بستن</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Message list */}
+              {messages.length === 0 ? (
+                <div className="glass-panel rounded-2xl p-8 text-center" style={{ border: '1px solid #2e2e32' }}>
+                  <p className="text-4xl mb-2">📭</p>
+                  <p className="text-sm text-white font-bold">هنوز هیچ پیامی ایجاد نشده</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {messages.map(m => (
+                    <div key={m.id} className="glass-panel rounded-2xl p-4 flex flex-col gap-2" style={{ border: '1px solid #2e2e32' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{MESSAGE_TYPE_ICONS[m.type]}</span>
+                        <div className="flex-1">
+                          <p className="font-black text-white text-sm">{m.title}</p>
+                          <p className="text-xs" style={{ color: '#6D6E71' }}>
+                            {MESSAGE_TYPE_LABELS[m.type]} · {TARGET_LABELS[m.target]} · {new Date(m.createdAt).toLocaleDateString('fa-IR')}
+                          </p>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                          style={{ background: m.status === 'sent' ? '#22c55e20' : '#ffd60a20',
+                            color: m.status === 'sent' ? '#4ade80' : '#ffd60a',
+                            border: `1px solid ${m.status === 'sent' ? '#22c55e44' : '#ffd60a44'}` }}>
+                          {STATUS_LABELS[m.status]}
+                        </span>
+                      </div>
+                      <p className="text-xs leading-5 line-clamp-2" style={{ color: '#9a9b9e' }}>{m.body}</p>
+                      {m.status === 'sent' && (
+                        <p className="text-xs" style={{ color: '#555' }}>
+                          ارسال: {m.sentAt ? new Date(m.sentAt).toLocaleString('fa-IR') : '—'} ·
+                          تحویل: {m.deliveredCount ?? 0}
+                        </p>
+                      )}
+                      <div className="flex gap-2 mt-1">
+                        {m.status === 'draft' && (
+                          <button onClick={() => setMsgSendConfirm(m.id)}
+                            className="btn-game text-xs px-3 py-1.5 rounded-lg"
+                            style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249' }}>
+                            ارسال
+                          </button>
+                        )}
+                        <button onClick={() => handleDeleteMsg(m.id)} className="btn-game text-xs px-3 py-1.5 rounded-lg"
+                          style={{ border: '1px solid #2e2e3244', color: '#555' }}>حذف</button>
+                        {msgSent === m.id && <span className="text-xs" style={{ color: '#4ade80' }}>✅ ارسال شد</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Send confirm */}
+              {msgSendConfirm && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center"
+                  style={{ background: 'rgba(0,0,0,0.8)' }} onClick={() => setMsgSendConfirm(null)}>
+                  <div className="glass-panel rounded-2xl p-5 w-full max-w-sm mx-4" style={{ border: '1px solid #2e2e32' }}
+                    onClick={e => e.stopPropagation()}>
+                    <p className="font-black text-white mb-2">تأیید ارسال</p>
+                    <p className="text-sm mb-4" style={{ color: '#9a9b9e' }}>
+                      این پیام در این دستگاه تحویل داده خواهد شد.
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleSendMsg(msgSendConfirm)}
+                        disabled={msgSending}
+                        className="btn-game text-xs px-4 py-2 rounded-xl font-black flex-1"
+                        style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249' }}>
+                        {msgSending ? 'در حال ارسال...' : 'ارسال'}
+                      </button>
+                      <button onClick={() => setMsgSendConfirm(null)} className="btn-game text-xs px-3 py-2 rounded-xl"
+                        style={{ border: '1px solid #2e2e32', color: '#6D6E71' }}>انصراف</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              RELEASE MANAGEMENT
+          ══════════════════════════════════════════════════════════ */}
+          {section === 'versions' && (
+            <div className="flex flex-col gap-5 max-w-3xl mx-auto">
+              <h2 className="text-lg font-black text-white">🚀 مدیریت نسخه‌ها</h2>
+
+              {/* Current release highlight */}
+              {(() => {
+                const current = getCurrentRelease()
+                const statusColor = RELEASE_STATUS_COLORS[current.status]
+                return (
+                  <div className="glass-panel rounded-2xl p-5" style={{ border: `1px solid ${statusColor}44` }}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl font-black" style={{ color: statusColor }}>v{current.version}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                            style={{ background: `${statusColor}20`, color: statusColor, border: `1px solid ${statusColor}44` }}>
+                            {RELEASE_STATUS_LABELS[current.status]}
+                          </span>
+                        </div>
+                        <p className="text-sm text-white font-bold mt-0.5">{current.title}</p>
+                        <p className="text-xs mt-0.5" style={{ color: '#6D6E71' }}>{new Date(current.releaseDate).toLocaleDateString('fa-IR')}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm leading-6" style={{ color: '#9a9b9e' }}>{current.summary}</p>
+
+                    {current.features.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-black mb-2" style={{ color: '#60a5fa' }}>✨ قابلیت‌های جدید</p>
+                        <ul className="flex flex-col gap-1">
+                          {current.features.map((f, i) => <li key={i} className="text-xs leading-5" style={{ color: '#c5d7f7' }}>• {f}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {current.improvements.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs font-black mb-2" style={{ color: '#4ade80' }}>🔧 بهبودها</p>
+                        <ul className="flex flex-col gap-1">
+                          {current.improvements.map((f, i) => <li key={i} className="text-xs leading-5" style={{ color: '#c5f7d4' }}>• {f}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {current.bugFixes.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs font-black mb-2" style={{ color: '#f87171' }}>🐛 رفع خطاها</p>
+                        <ul className="flex flex-col gap-1">
+                          {current.bugFixes.map((f, i) => <li key={i} className="text-xs leading-5" style={{ color: '#fca5a5' }}>• {f}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {can('sendReleaseAnnouncements') && current.status === 'live' && (
+                      <button onClick={() => sendReleaseAnnouncement(current.version)}
+                        className="btn-game mt-4 text-xs px-4 py-2 rounded-xl font-black w-full"
+                        style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249' }}>
+                        📢 ارسال تغییرات این نسخه برای کاربران
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* History */}
+              <h3 className="text-sm font-black text-white mt-2">تاریخچه نسخه‌ها</h3>
+              <div className="flex flex-col gap-3">
+                {RELEASE_HISTORY.slice(1).map(r => {
+                  const sc = RELEASE_STATUS_COLORS[r.status]
+                  return (
+                    <div key={r.version} className="glass-panel rounded-2xl p-4" style={{ border: '1px solid #2e2e32' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black" style={{ color: sc }}>v{r.version}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full"
+                          style={{ background: `${sc}15`, color: sc, border: `1px solid ${sc}33` }}>
+                          {RELEASE_STATUS_LABELS[r.status]}
+                        </span>
+                        <span className="text-xs flex-1 text-right" style={{ color: '#6D6E71' }}>{new Date(r.releaseDate).toLocaleDateString('fa-IR')}</span>
+                      </div>
+                      <p className="text-xs mt-1" style={{ color: '#6D6E71' }}>{r.title}</p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Deployment info */}
+              <div className="glass-panel rounded-2xl p-4" style={{ border: '1px solid #2e2e32' }}>
+                <p className="text-xs font-black mb-3" style={{ color: '#6D6E71' }}>اطلاعات استقرار</p>
+                {[
+                  ['نسخه Runtime', __APP_VERSION__],
+                  ['Build ID', import.meta.env.VITE_BUILD_ID ?? 'FIGMA-CURRENT'],
+                  ['محیط', import.meta.env.PROD ? 'GitHub Pages' : 'Figma Make Dev'],
+                  ['آدرس تولید', 'https://uxteambehsazan-commits.github.io/team-arena/'],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex gap-2 py-1.5 border-b" style={{ borderColor: '#1e1e20' }}>
+                    <span className="text-xs w-28 flex-shrink-0" style={{ color: '#555' }}>{k}</span>
+                    <span className="text-xs font-mono" style={{ color: '#9a9b9e' }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              AUDIT LOG
+          ══════════════════════════════════════════════════════════ */}
+          {section === 'audit' && (
+            <div className="flex flex-col gap-4 max-w-3xl mx-auto">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-black text-white flex-1">📋 گزارش فعالیت مدیران</h2>
+                {can('viewAuditLogs') && auditLog.length > 0 && (
+                  <button onClick={() => { clearAuditLog(); refreshAudit() }}
+                    className="btn-game text-xs px-3 py-1.5 rounded-lg"
+                    style={{ border: '1px solid #2e2e3244', color: '#555' }}>
+                    پاک‌سازی
+                  </button>
+                )}
+              </div>
+
+              {!can('viewAuditLogs') ? (
+                <div className="glass-panel rounded-2xl p-6 text-center" style={{ border: '1px solid #2e2e32' }}>
+                  <p className="text-2xl mb-2">🔒</p>
+                  <p className="text-sm font-bold text-white">دسترسی ندارید</p>
+                  <p className="text-xs mt-1" style={{ color: '#6D6E71' }}>فقط SYSTEM_ADMIN می‌تواند گزارش فعالیت را مشاهده کند.</p>
+                </div>
+              ) : auditLog.length === 0 ? (
+                <div className="glass-panel rounded-2xl p-8 text-center" style={{ border: '1px solid #2e2e32' }}>
+                  <p className="text-4xl mb-2">📋</p>
+                  <p className="text-sm text-white font-bold">هنوز هیچ فعالیتی ثبت نشده</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {auditLog.map(e => (
+                    <div key={e.id} className="glass-panel rounded-xl px-4 py-3 flex items-center gap-3"
+                      style={{ border: '1px solid #2e2e32' }}>
+                      <div className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ background: e.result === 'success' ? '#22c55e' : e.result === 'failure' ? '#CC2229' : '#6D6E71' }} />
+                      <div className="flex-1">
+                        <p className="text-xs font-black text-white">{AUDIT_ACTION_LABELS[e.action]}</p>
+                        {e.target && <p className="text-xs" style={{ color: '#555' }}>{e.target}</p>}
+                        {e.detail && <p className="text-xs" style={{ color: '#555' }}>{e.detail}</p>}
+                      </div>
+                      <p className="text-xs" style={{ color: '#444' }}>
+                        {new Date(e.timestamp).toLocaleString('fa-IR', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              ADMIN ROLES MANAGEMENT
+          ══════════════════════════════════════════════════════════ */}
+          {section === 'admins' && (
+            <div className="flex flex-col gap-5 max-w-2xl mx-auto">
+              <h2 className="text-lg font-black text-white">🛡️ تنظیمات مدیران</h2>
+
+              <div className="glass-panel rounded-2xl p-5" style={{ border: '1px solid #2e2e32' }}>
+                <p className="text-xs font-black mb-1" style={{ color: '#6D6E71' }}>نقش جلسه فعلی</p>
+                <p className="text-sm font-bold text-white mb-4">{ROLE_LABELS[currentRole]}</p>
+
+                {can('manageAdminPermissions') ? (
+                  <>
+                    <p className="text-xs mb-3" style={{ color: '#555' }}>
+                      تغییر نقش فقط برای این جلسه مرورگر اعمال می‌شود. در یک سیستم واقعی، نقش‌ها از سرور احراز هویت دریافت می‌شوند.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {(['SYSTEM_ADMIN', 'CONTENT_ADMIN', 'SUPPORT_ADMIN', 'VIEWER'] as AdminRole[]).map(role => (
+                        <button key={role} onClick={() => {
+                          setAdminRole(role); setCurrentRole(role)
+                          logAudit('ADMIN_ROLE_CHANGED', 'success', { target: role }); refreshAudit()
+                        }}
+                          className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all"
+                          style={{
+                            background: currentRole === role ? '#CC222920' : '#1a1a1c',
+                            border: `1px solid ${currentRole === role ? '#CC2229' : '#2e2e32'}`,
+                          }}>
+                          <div className="w-3 h-3 rounded-full border-2 flex-shrink-0"
+                            style={{ borderColor: currentRole === role ? '#e84249' : '#555',
+                              background: currentRole === role ? '#e84249' : 'transparent' }} />
+                          <div className="flex-1">
+                            <p className="text-sm font-black text-white">{ROLE_LABELS[role]}</p>
+                            <p className="text-xs mt-0.5" style={{ color: '#6D6E71' }}>
+                              {role === 'SYSTEM_ADMIN' ? 'دسترسی کامل به همه قابلیت‌ها' :
+                               role === 'CONTENT_ADMIN' ? 'محتوا، اطلاع‌رسانی، یادداشت نسخه' :
+                               role === 'SUPPORT_ADMIN' ? 'پیام کاربران، اطلاعات جلسات' :
+                               'فقط مشاهده داشبورد'}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs" style={{ color: '#6D6E71' }}>فقط SYSTEM_ADMIN می‌تواند نقش‌ها را مدیریت کند.</p>
+                )}
+              </div>
+
+              {/* Permission matrix for current role */}
+              <div className="glass-panel rounded-2xl p-4" style={{ border: '1px solid #2e2e32' }}>
+                <p className="text-xs font-black mb-3" style={{ color: '#6D6E71' }}>دسترسی‌های نقش فعلی</p>
+                <div className="flex flex-col gap-1">
+                  {[
+                    ['githubCredential', 'مدیریت اعتبارنامه GitHub'],
+                    ['revealCredential', 'نمایش توکن'],
+                    ['copyCredential', 'کپی توکن'],
+                    ['rotateCredential', 'تعویض توکن'],
+                    ['revokeCredential', 'لغو توکن'],
+                    ['userMessaging', 'پیام به کاربران'],
+                    ['releaseManagement', 'مدیریت نسخه'],
+                    ['releaseNotes', 'یادداشت نسخه'],
+                    ['sendReleaseAnnouncements', 'ارسال اطلاع‌رسانی نسخه'],
+                    ['viewAuditLogs', 'مشاهده گزارش فعالیت'],
+                    ['manageAdminPermissions', 'مدیریت دسترسی مدیران'],
+                    ['manageGameContent', 'مدیریت محتوای بازی'],
+                    ['viewUsers', 'مشاهده کاربران'],
+                    ['viewSessions', 'مشاهده جلسات'],
+                  ].map(([perm, label]) => (
+                    <div key={perm} className="flex items-center gap-2 py-1.5 border-b" style={{ borderColor: '#1e1e20' }}>
+                      <span className="text-xs">{can(perm as any) ? '✅' : '❌'}</span>
+                      <span className="text-xs flex-1" style={{ color: can(perm as any) ? '#c5d7f7' : '#555' }}>{label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

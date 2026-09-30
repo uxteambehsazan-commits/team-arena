@@ -349,3 +349,11 @@ html, body {
   0%,100% { filter: brightness(1) drop-shadow(0 0 18px var(--char-accent)); }
   50%     { filter: brightness(1.08) drop-shadow(0 0 32px var(--char-accent)); }
 }
+
+/* ── NotificationCenter ── */
+.notif-body-clamp {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}

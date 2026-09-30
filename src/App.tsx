@@ -34,6 +34,7 @@ import ProfilePage from './screens/ProfilePage'
 import NameFamilyGame from './screens/NameFamilyGame'
 import XPToast, { type XPEvent } from './components/XPToast'
 import SplashScreen from './screens/SplashScreen'
+import NotificationCenter from './components/NotificationCenter'
 
 export interface OnlineSession {
   code: string
@@ -282,6 +283,7 @@ export default function App() {
       )}
 
       {/* Admin icon moved into Home.tsx — shown only on main home step */}
+      <NotificationCenter />
     </div>
   )
 }

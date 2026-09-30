@@ -35,21 +35,25 @@ export const GAME_CAPABILITIES: Record<string, GameCapabilityMetadata> = {
     winConditions: ['اول پاسخ دادن'],
   },
   TEAM: {
+    // چشمک — نقش‌محور گروهی. CPU: false (digital wink needs real human interaction)
     gameId: 'TEAM', name: 'چشمک',
-    minPlayers: 4, maxPlayers: 8,
+    minPlayers: 4, maxPlayers: 10,
     supportsSinglePlayer: false, supportsOnline: true, supportsRoomCode: true,
     supportsHiddenRoles: true, supportsPrivateInformation: true,
-    supportsTeams: true, requiresHost: true, requiresRealtimeSync: true,
-    roles: ['بازیکن', 'عامل مخفی'],
-    winConditions: ['تیم با بیشترین چشمک'],
+    supportsTeams: false, requiresHost: true, requiresRealtimeSync: false,
+    roles: ['بازیکن', 'چشمک'],
+    winConditions: ['شناسایی چشمک', 'حذف همه بازیکنان'],
+    supportsLocalDevice: true,
   },
   FINAL: {
-    gameId: 'FINAL', name: 'نبرد قلمرو',
-    minPlayers: 2, maxPlayers: 8,
-    supportsSinglePlayer: false, supportsOnline: true, supportsRoomCode: true,
+    // دوز — tic-tac-toe. CPU: true via DozGame standalone screen.
+    gameId: 'FINAL', name: 'دوز',
+    minPlayers: 1, maxPlayers: 8,
+    supportsSinglePlayer: true, supportsOnline: true, supportsRoomCode: true,
     supportsHiddenRoles: false, supportsPrivateInformation: false,
     supportsTeams: false, requiresHost: true, requiresRealtimeSync: true,
-    winConditions: ['بیشترین قلمرو'],
+    winConditions: ['اول به ۲ برد برسد'],
+    supportsCPU: true, supportsLocalDevice: true,
   },
   NAME_FAMILY: {
     gameId: 'NAME_FAMILY', name: 'اسم‌فامیل',

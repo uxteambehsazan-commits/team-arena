@@ -19,6 +19,36 @@ export interface ReleaseNote {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: '3.10.0',
+    title: 'دوز با CPU واقعی + بازسازی کامل چشمک',
+    releaseDate: '2026-09-30',
+    status: 'live',
+    summary: 'دوز با سه سطح CPU (آسان/متوسط/سخت، minimax)، بازسازی کامل چشمک به بازی نقش‌محور گروهی واقعی با سیستم اتهام، حذف CPU از چشمک.',
+    features: [
+      'دوز: CPU واقعی با سه سطح — آسان (تصادفی+بلاک)، متوسط (heuristic)، سخت (minimax)',
+      'دوز: state machine کامل PLAYER_TURN→CPU_THINKING→CPU_MOVE با delay ۴۰۰-۹۰۰ms',
+      'دوز: نمایش خط برنده، آخرین حرکت، امتیاز دور‌های متعدد',
+      'چشمک: بازنویسی کامل — بازی نقش‌محور گروهی ۴ تا ۱۰ نفره',
+      'چشمک: Role Assignment تصادفی — یک نفر چشمک، بقیه بازیکن عادی',
+      'چشمک: Pass-Device role reveal — هر بازیکن نقش خود را خصوصی می‌بیند',
+      'چشمک: عملیات مخفی — چشمک می‌تواند هدف را انتخاب و چشمک بزند',
+      'چشمک: حذف با تأخیر ۲-۴ ثانیه بعد از چشمک',
+      'چشمک: سیستم اتهام با تأیید — حدس درست=پیروزی بازیکنان، حدس اشتباه=حذف متهم‌کننده',
+      'چشمک: شرط برد مبتنی بر Game Rule Engine',
+    ],
+    improvements: [
+      'حذف CPU از چشمک در gameCapabilities (supportsSinglePlayer: false)',
+      'minPlayers چشمک: ۴، maxPlayers: ۱۰',
+      'دوز در gameCapabilities: supportsSinglePlayer: true, supportsCPU: true',
+    ],
+    bugFixes: [],
+    performance: [],
+    security: [],
+    knownIssues: [
+      'Online multiplayer چشمک نیاز به backend push service دارد',
+    ],
+  },
+  {
     version: '3.9.0',
     title: 'مرکز کنترل مدیران — پیام‌رسانی، نسخه‌ها، امنیت',
     releaseDate: '2026-09-30',

@@ -35,6 +35,7 @@ import NameFamilyGame from './screens/NameFamilyGame'
 import XPToast, { type XPEvent } from './components/XPToast'
 import SplashScreen from './screens/SplashScreen'
 import NotificationCenter from './components/NotificationCenter'
+import DozGame from './screens/DozGame'
 
 export interface OnlineSession {
   code: string
@@ -216,6 +217,12 @@ export default function App() {
       )}
       {soloGameId === 'name_family' && (
         <NameFamilyGame onExit={() => setSoloGameId(null)} />
+      )}
+      {soloGameId === 'doz' && (
+        <DozGame onExit={() => setSoloGameId(null)} />
+      )}
+      {soloGameId === 'cheshmak' && (
+        <TeamChallenge onExit={() => setSoloGameId(null)} />
       )}
 
       {/* ── Behsazani game overlay — full screen, highest priority ── */}

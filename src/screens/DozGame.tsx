@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { loadProfile } from '../lib/playerProfile'
 
 // ── Win detection ────────────────────────────────────────────────────────────
@@ -59,7 +59,6 @@ function getCpuMove(board: Cell[], cpu: Cell, player: Cell, difficulty: Difficul
   if (!empty.length) return -1
 
   if (difficulty === 'easy') {
-    // 70% random, 30% block obvious win
     if (Math.random() > 0.7) {
       for (const i of empty) {
         const t = [...board]; t[i] = player
@@ -70,13 +69,9 @@ function getCpuMove(board: Cell[], cpu: Cell, player: Cell, difficulty: Difficul
   }
 
   if (difficulty === 'medium') {
-    // Win
     for (const i of empty) { const t=[...board];t[i]=cpu; if(checkWin(t)) return i }
-    // Block
     for (const i of empty) { const t=[...board];t[i]=player; if(checkWin(t)) return i }
-    // Center
     if (board[4]===null) return 4
-    // Corners
     const corners = [0,2,6,8].filter(i => board[i]===null)
     if (corners.length) return corners[Math.floor(Math.random()*corners.length)]
     return empty[Math.floor(Math.random()*empty.length)]
@@ -101,10 +96,11 @@ const CPU_AVATARS = ['🤖','🎯','⚡','🦊','👾']
 const DIFFICULTY_LABELS: Record<Difficulty, string> = { easy: 'آسان', medium: 'متوسط', hard: 'سخت' }
 const DIFFICULTY_COLORS: Record<Difficulty, string> = { easy: '#22c55e', medium: '#ffd60a', hard: '#CC2229' }
 
+const PLAYER_SYMBOL: Cell = 'X'
+const CPU_SYMBOL: Cell = 'O'
+
 export default function DozGame({ onExit }: Props) {
   const profile = loadProfile()
-  const playerSymbol: Cell = 'X'
-  const cpuSymbol: Cell    = 'O'
 
   const [difficulty, setDifficulty] = useState<Difficulty>(
     () => (localStorage.getItem('ta_cpu_difficulty') as Difficulty | null) ?? 'medium'
@@ -120,60 +116,86 @@ export default function DozGame({ onExit }: Props) {
   const [draws, setDraws]             = useState(0)
   const [gameStarted, setGameStarted] = useState(false)
 
-  const cpuAvatar = CPU_AVATARS[Math.floor(Math.random() * CPU_AVATARS.length)]
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Stable avatar for the session
+  const cpuAvatar = useMemo(
+    () => CPU_AVATARS[Math.floor(Math.random() * CPU_AVATARS.length)],
+    []
+  )
 
-  // ── CPU turn ──────────────────────────────────────────────────────────────
-  const executeCpuTurn = useCallback((currentBoard: Cell[]) => {
+  // roundId guards against stale timeouts firing after restart
+  const roundIdRef = useRef(0)
+  const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── CPU turn via effect — fires whenever turn becomes 'cpu' ──────────────
+  useEffect(() => {
+    if (turn !== 'cpu' || phase !== 'playing') return
+
+    const myRound = roundIdRef.current
     setThinking(true)
+
     const delay = 400 + Math.random() * 500
     timerRef.current = setTimeout(() => {
-      const move = getCpuMove(currentBoard, cpuSymbol, playerSymbol, difficulty)
+      // Guard: discard if a restart happened since this timeout was scheduled
+      if (roundIdRef.current !== myRound) return
+
+      const move = getCpuMove(board, CPU_SYMBOL, PLAYER_SYMBOL, difficulty)
       if (move === -1) { setThinking(false); return }
 
-      const next = [...currentBoard]
-      next[move] = cpuSymbol
+      const next = [...board]
+      next[move] = CPU_SYMBOL
       setBoard(next)
       setLastMove(move)
       setThinking(false)
 
       const win = checkWin(next)
       if (win) {
-        setPhase('win'); setWinResult(win)
-        setCpuScore(s => s+1)
+        setPhase('win')
+        setWinResult(win)
+        setCpuScore(s => s + 1)
       } else if (isDraw(next)) {
-        setPhase('draw'); setDraws(d => d+1)
+        setPhase('draw')
+        setDraws(d => d + 1)
       } else {
         setTurn('player')
       }
     }, delay)
-  }, [difficulty])
 
-  // Clean up timer on unmount
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turn, phase])
+  // NOTE: intentionally excludes `board` and `difficulty` from deps.
+  // The effect fires exactly once when turn flips to 'cpu'; board and
+  // difficulty are read at that point via closure — they are current because
+  // the effect runs after the state that changed turn has committed.
 
   // ── Player move ───────────────────────────────────────────────────────────
   function handleCellClick(idx: number) {
     if (phase !== 'playing' || turn !== 'player' || board[idx] || thinking) return
+
     const next = [...board]
-    next[idx] = playerSymbol
+    next[idx] = PLAYER_SYMBOL
     setBoard(next)
     setLastMove(idx)
 
     const win = checkWin(next)
     if (win) {
-      setPhase('win'); setWinResult(win)
-      setPlayerScore(s => s+1)
+      setPhase('win')
+      setWinResult(win)
+      setPlayerScore(s => s + 1)
     } else if (isDraw(next)) {
-      setPhase('draw'); setDraws(d => d+1)
+      setPhase('draw')
+      setDraws(d => d + 1)
     } else {
       setTurn('cpu')
-      executeCpuTurn(next)
+      // CPU turn is handled by the useEffect above
     }
   }
 
   // ── Restart round ─────────────────────────────────────────────────────────
   function restartRound() {
+    roundIdRef.current += 1          // invalidate any in-flight CPU timeout
     if (timerRef.current) clearTimeout(timerRef.current)
     setBoard(Array(9).fill(null))
     setTurn('player')
@@ -185,7 +207,9 @@ export default function DozGame({ onExit }: Props) {
 
   function newGame() {
     restartRound()
-    setPlayerScore(0); setCpuScore(0); setDraws(0)
+    setPlayerScore(0)
+    setCpuScore(0)
+    setDraws(0)
   }
 
   // ── Setup screen ──────────────────────────────────────────────────────────
@@ -242,8 +266,8 @@ export default function DozGame({ onExit }: Props) {
   }
 
   // ── Game screen ───────────────────────────────────────────────────────────
-  const isPlayerWin = phase === 'win' && winResult?.winner === playerSymbol
-  const isCpuWin    = phase === 'win' && winResult?.winner === cpuSymbol
+  const isPlayerWin = phase === 'win' && winResult?.winner === PLAYER_SYMBOL
+  const isCpuWin    = phase === 'win' && winResult?.winner === CPU_SYMBOL
 
   return (
     <div dir="rtl" style={{
@@ -268,13 +292,13 @@ export default function DozGame({ onExit }: Props) {
           <p style={{
             fontSize:12,margin:'2px 0 0',
             color: phase==='playing'
-              ? (turn==='cpu' ? '#ffd60a' : '#4ade80')
+              ? (thinking ? '#ffd60a' : turn==='player' ? '#4ade80' : '#ffd60a')
               : phase==='win'
                 ? (isPlayerWin ? '#4ade80' : '#e84249')
                 : '#9a9b9e',
           }}>
             {phase==='playing'
-              ? (thinking ? '⏳ CPU در حال فکر کردن...' : turn==='player' ? '✅ نوبت شما' : '')
+              ? (thinking ? `${cpuAvatar} CPU در حال فکر کردن...` : '✅ نوبت شما')
               : phase==='win'
                 ? (isPlayerWin ? '🎉 شما بردید!' : '🤖 CPU برد!')
                 : '🤝 بازی مساوی شد'}
@@ -300,7 +324,7 @@ export default function DozGame({ onExit }: Props) {
             border:`1.5px solid ${turn==='player' && phase==='playing' ? '#4ade8055' : '#2e2e32'}`,
             transition:'all 0.25s',minWidth:90,
           }}>
-            <div style={{fontSize:36}}>{profile.avatarId ? `👤` : '😊'}</div>
+            <div style={{fontSize:36}}>😊</div>
             <p style={{color:'#fff',fontWeight:900,fontSize:13,margin:0,textAlign:'center',maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
               {profile.name || 'شما'}
             </p>
@@ -331,7 +355,7 @@ export default function DozGame({ onExit }: Props) {
             transition:'all 0.25s',minWidth:90,
           }}>
             <div style={{fontSize:36,position:'relative'}}>
-              🤖
+              {cpuAvatar}
               {thinking && (
                 <span style={{position:'absolute',top:-4,right:-4,fontSize:14,
                   animation:'spin 1s linear infinite'}}>⚙️</span>
@@ -375,7 +399,7 @@ export default function DozGame({ onExit }: Props) {
                   boxShadow: isWinCell ? '0 0 20px #ffd60a33' : 'none',
                   transform: isLast ? 'scale(1.04)' : 'scale(1)',
                 }}>
-                {cell === 'X' ? '✕' : cell === 'O' ? '○' : (canClick ? '' : '')}
+                {cell === 'X' ? '✕' : cell === 'O' ? '○' : ''}
               </button>
             )
           })}

@@ -1,4 +1,4 @@
-const CACHE = 'teammates-arena-v10'
+const CACHE = 'teammates-arena-v11'
 const PRECACHE = ['/', '/index.html']
 
 self.addEventListener('install', e => {

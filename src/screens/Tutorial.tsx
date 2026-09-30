@@ -1,24 +1,19 @@
 import { useState, useEffect } from 'react'
-import { MISSION_ART } from '../lib/missionArt'
-import artBDesigner   from '../imports/art-b-designer.png'
-import artBCouncil    from '../imports/art-b-council.png'
-import artBCodebreak  from '../imports/art-b-codebreak.png'
-import artBBigrace    from '../imports/art-b-bigrace.png'
-import artBMafia      from '../imports/art-b-mafia.png'
-import artBSecretcode from '../imports/art-b-secretcode.png'
-import artBSpy        from '../imports/art-b-spy.png'
-import artBOneword    from '../imports/art-b-oneword.png'
+import { GAME_ASSETS, GAME_KEY_TO_ASSET } from '../lib/gameAssets'
 import MobileHeader from '../components/MobileHeader'
 
+// Legacy alias — mapped to central registry
 const BEHSAZAN_ART: Record<string, string> = {
-  'b-designer':   artBDesigner,
-  'b-council':    artBCouncil,
-  'b-codebreak':  artBCodebreak,
-  'b-bigrace':    artBBigrace,
-  'b-mafia':      artBMafia,
-  'b-secretcode': artBSecretcode,
-  'b-spy':        artBSpy,
-  'b-oneword':    artBOneword,
+  'b-designer':    GAME_ASSETS['behsazani_naghghashi'],
+  'b-naghghashi':  GAME_ASSETS['behsazani_naghghashi'],
+  'b-council':    GAME_ASSETS['behsazani_project_council'],
+  'b-codebreak':  GAME_ASSETS['behsazani_code_breakers'],
+  'b-bigrace':    GAME_ASSETS['behsazani_it_quiz'],
+  'b-mafia':      GAME_ASSETS['behsazani_mafia'],
+  'b-secretcode': GAME_ASSETS['behsazani_project_code'],
+  'b-spy':        GAME_ASSETS['behsazani_spy'],
+  'b-oneword':    GAME_ASSETS['behsazani_one_word'],
+  'b-hunt':       GAME_ASSETS['behsazani_hunt'],
 }
 
 interface Props { onClose: () => void }
@@ -30,7 +25,7 @@ interface GameInfo {
   name: string
   desc: string
   color: string
-  artKey?: string        // key into MISSION_ART (public games)
+  artKey?: string        // maps MISSION_ID → central game asset
   behsazanKey?: string   // key into BEHSAZAN_ART (behsazan games)
   players: string
   minPlayers: number
@@ -44,7 +39,7 @@ interface GameInfo {
 const PUBLIC_GAMES: GameInfo[] = [
   {
     id: 'guess',
-    artKey: 'SPEED',
+    artKey: 'SPEED',   // GAME_ASSETS['SPEED']
     emoji: '🕵️',
     name: 'حدس بزن',
     desc: 'تصویر رو ببین، سرنخ‌ها رو دنبال کن و قبل از بقیه حدس بزن.',
@@ -79,20 +74,21 @@ const PUBLIC_GAMES: GameInfo[] = [
     minPlayers: 2,
     maxPlayers: 8,
     rules: [
-      'یک حرف الفبا به همه بازیکن‌ها نمایش داده می‌شه.',
-      'چند دسته مثل «شهر»، «حیوان»، «غذا» وجود داره.',
-      'همه بازیکن‌ها باید برای هر دسته یک کلمه با همان حرف بنویسن.',
-      'جواب باید دقیقاً با حرف مشخص‌شده شروع بشه.',
-      'جواب‌های تکراری امتیاز کمتری دارن.',
+      'این بازی فقط آنلاین (چند دستگاه مستقل) بازی می‌شه.',
+      'یک حرف الفبا به همه نمایش داده می‌شه.',
+      'چند دسته (شهر، حیوان، غذا، اسم...) وجود داره.',
+      'هر بازیکن باید برای هر دسته یک کلمه با آن حرف بنویسه.',
+      'اعتبارسنجی معنایی توسط خود بازیکنان انجام می‌شه (نه هوش مصنوعی).',
+      'جواب‌های منحصربه‌فرد که هیچ بازیکن دیگری ننوشته امتیاز بیشتری دارن.',
     ],
     howTo: [
+      'وارد اتاق آنلاین بشو.',
       'حرف راند رو مشاهده کن.',
-      'برای هر دسته یک کلمه با اون حرف بنویس.',
-      'سعی کن جواب‌های منحصربه‌فرد بنویسی.',
-      'قبل از تموم شدن وقت همه دسته‌ها رو پر کن.',
-      'دکمه ثبت رو بزن.',
+      'برای هر دسته یک کلمه بنویس — جواب‌ها پنهانه تا پایان زمان.',
+      'بعد از پایان زمان، جواب‌های بقیه نمایش داده می‌شه.',
+      'جواب‌های دیگران رو تأیید یا رد کن — جواب خودت رو نمی‌تونی ارزیابی کنی.',
     ],
-    scoring: 'جواب صحیح با حرف درست امتیاز می‌آره. جواب منحصربه‌فرد (که کس دیگه‌ای ننوشته) امتیاز بیشتری می‌گیره.',
+    scoring: 'جواب صحیح منحصربه‌فرد بیشترین امتیاز رو داره. جواب مشترک با بقیه امتیاز نصف می‌گیره. رد شدن = صفر.',
   },
   {
     id: 'memory',
@@ -255,29 +251,30 @@ const PUBLIC_GAMES: GameInfo[] = [
 const BEHSAZAN_GAMES: GameInfo[] = [
   {
     id: 'b-designer',
-    behsazanKey: 'b-designer',
-    emoji: '😉',
-    name: 'طراح ناشناس',
-    desc: 'کدوم یکی طراح ناشناسه؟ با تیمت کشف کن!',
+    behsazanKey: 'b-naghghashi',
+    emoji: '🎨',
+    name: 'نقاش‌باشی',
+    desc: 'یک نفر نقاشی می‌کشه، بقیه حدس می‌زنن!',
     color: '#a855f7',
-    players: '۴ تا ۸ نفر',
-    minPlayers: 4,
+    players: '۳ تا ۸ نفر',
+    minPlayers: 3,
     maxPlayers: 8,
     rules: [
-      'یک نفر نقش «طراح ناشناس» رو دارد.',
-      'بقیه بازیکنان باید این شخص رو شناسایی کنن.',
-      'طراح ناشناس باید تا آخر بازی مخفی بمونه.',
-      'در زمان رأی‌گیری هر بازیکن مظنونش رو انتخاب می‌کنه.',
-      'تیمی که درست تشخیص بده برنده‌ست.',
+      'هر راند یک بازیکن نقش نقاش رو داره.',
+      'نقاش یک کلمه مخفی دریافت می‌کنه — دیگران نمی‌دونن.',
+      'نقاش کلمه رو نقاشی می‌کشه (نوشتن ممنوع!).',
+      'بقیه بازیکنان حدس می‌زنن که چیه.',
+      'اولین نفری که درست حدس بزنه امتیاز می‌گیره.',
+      'بعد از پایان زمان، نقاش عوض می‌شه.',
     ],
     howTo: [
-      'نقشت رو مشاهده کن — کسی نباید بفهمه.',
-      'اگر طراح ناشناسی، وانمود کن عادی هستی.',
-      'رفتار بقیه رو زیر نظر بگیر.',
-      'در مرحله رأی‌گیری فرد موردنظرت رو انتخاب کن.',
-      'نتیجه رو ببین.',
+      'اگر نقاشی، کلمه مخفیت رو ببین.',
+      'با ابزار نقاشی، کلمه رو تصویری نشون بده.',
+      'نوشتن حروف یا اشاره مستقیم ممنوعه.',
+      'اگر حدس‌زننده‌ای، جوابت رو تایپ کن.',
+      'اولین حدس درست = برنده راند.',
     ],
-    scoring: 'شناسایی درست طراح ناشناس امتیاز می‌آره. اگر طراحی و لو نرفتی امتیاز می‌گیری.',
+    scoring: 'حدس‌زننده اول: ۳ امتیاز. نقاش برای هر حدس درست: ۱ امتیاز. سرعت هم مهمه.',
   },
   {
     id: 'b-council',
@@ -362,26 +359,28 @@ const BEHSAZAN_GAMES: GameInfo[] = [
     behsazanKey: 'b-mafia',
     emoji: '🫣',
     name: 'مافیای بهسازان',
-    desc: 'مافیا رو پیدا کن قبل از اینکه دیر بشه!',
+    desc: 'مافیا بین ما مخفیه! شهروندان مافیا رو پیدا کنن قبل از اینکه دیر بشه.',
     color: '#ef4444',
-    players: '۲ تا ۸ نفر',
-    minPlayers: 2,
-    maxPlayers: 8,
+    players: '۴ تا ۱۶ نفر',
+    minPlayers: 4,
+    maxPlayers: 16,
     rules: [
-      'کارت‌های مخفی بین بازیکنان توزیع می‌شه.',
-      'برخی کارت‌ها نقش مافیا دارن.',
-      'باید مکان کارت‌های مافیا رو به خاطر بسپاری.',
-      'هر بازیکن باید مکان درست رو انتخاب کنه.',
-      'انتخاب اشتباه یا دیرهنگام امتیاز کمتری داره.',
+      'نقش‌ها (مافیا / کارآگاه / دکتر / شهروند) مخفیانه توزیع می‌شه.',
+      'شب: مافیا یک نفر رو حذف می‌کنه. دکتر نجات می‌ده. کارآگاه تحقیق می‌کنه.',
+      'روز: همه بحث می‌کنن و به رأی‌گیری می‌رسن.',
+      'بازیکنی که بیشترین رأی رو بگیره حذف می‌شه.',
+      'مافیا برنده‌ست اگه تعدادشون برابر شهروندان بشه.',
+      'شهروندان برنده‌ان اگه همه مافیاها حذف بشن.',
+      'بازیکن حذف‌شده به ناظر تبدیل می‌شه.',
     ],
     howTo: [
-      'کارت‌ها رو با دقت نگاه کن.',
-      'موقعیت کارت‌های مافیا رو به خاطر بسپار.',
-      'کارت‌ها برگردانده می‌شن.',
-      'مکان مافیا رو انتخاب کن.',
-      'نتیجه رو ببین.',
+      'نقشت رو ببین — فقط تو می‌دونی.',
+      'شب: اگر مافیایی، با تیمت هماهنگ کن. اگر دکتری، یک نفر رو نجات بده.',
+      'روز: نتیجه شب اعلام می‌شه.',
+      'بحث کن — مافیا رو پیدا کن یا مخفی بمون.',
+      'رأی بده و بعد نتیجه رو ببین.',
     ],
-    scoring: 'شناسایی درست کارت مافیا امتیاز می‌آره. هرچه سریع‌تر انتخاب کنی امتیاز بیشتری می‌گیری.',
+    scoring: 'تیم برنده به‌علاوه عملکرد فردی (تحقیق‌های موفق، نجات، رأی‌گیری درست) امتیاز می‌گیرن. MVP جداگانه محاسبه می‌شه.',
   },
   {
     id: 'b-secretcode',
@@ -414,26 +413,27 @@ const BEHSAZAN_GAMES: GameInfo[] = [
     behsazanKey: 'b-spy',
     emoji: '🕵️',
     name: 'جاسوس بهسازان',
-    desc: 'جاسوس کیه؟ سریع فکر کن، سریع جواب بده!',
+    desc: 'یک نفر مکان رو نمی‌دونه — آیا جاسوس رو پیدا می‌کنی؟',
     color: '#f97316',
-    players: '۲ تا ۸ نفر',
-    minPlayers: 2,
-    maxPlayers: 8,
+    players: '۳ تا ۱۰ نفر',
+    minPlayers: 3,
+    maxPlayers: 10,
     rules: [
-      'یک تصویر یا موضوع بهسازانی به همه نمایش داده می‌شه.',
-      'هر بازیکن باید سریع‌ترین حدس صحیح رو بزنه.',
-      'پاسخ بعد از پایان زمان ثبت نمی‌شه.',
-      'سرعت در امتیاز تأثیر مستقیم داره.',
-      'نتیجه راند بعد از پایان زمان نمایش داده می‌شه.',
+      'یک مکان خاص (مثلاً «اتاق کنفرانس») به همه بازیکنان (جز جاسوس) نشان داده می‌شه.',
+      'جاسوس نمی‌دونه مکان کجاست.',
+      'همه بازیکنان از هم سؤال می‌کنن.',
+      'جاسوس باید وانمود کنه مکان رو می‌دونه.',
+      'بازیکنان باید جاسوس رو رأی‌گیری کنند.',
+      'جاسوس می‌تونه قبل از رأی‌گیری مکان رو حدس بزنه.',
     ],
     howTo: [
-      'موضوع یا تصویر راند رو مشاهده کن.',
-      'سرنخ‌ها رو دنبال کن.',
-      'پاسخت رو در کادر وارد کن.',
-      'قبل از پایان زمان دکمه ثبت رو بزن.',
-      'نتیجه راند رو ببین.',
+      'نقشت رو ببین — جاسوسی یا بازیکن عادی؟',
+      'اگر جاسوسی: با سؤال‌های زیرکانه مکان رو حدس بزن.',
+      'اگر بازیکن عادی: سؤال‌هایی بپرس که جاسوس لو بره ولی مکان رو فاش نکن.',
+      'رأی‌گیری: بازیکنی که فکر می‌کنی جاسوسه رو انتخاب کن.',
+      'جاسوس می‌تونه با حدس درست مکان، همه رو شکست بده.',
     ],
-    scoring: 'پاسخ صحیح زودهنگام امتیاز بیشتری می‌آره. دیرتر = امتیاز کمتر.',
+    scoring: 'اگر جاسوس لو بره: بقیه برنده‌ان. اگر جاسوس مکان رو درست حدس بزنه: جاسوس برنده. هر رأی درست امتیاز دارد.',
   },
   {
     id: 'b-oneword',
@@ -460,9 +460,36 @@ const BEHSAZAN_GAMES: GameInfo[] = [
     ],
     scoring: 'سرعت و دقت هر دو مهمن. اولین نفری که درست پاسخ بده امتیاز کامل می‌گیره.',
   },
+  {
+    id: 'b-hunt',
+    behsazanKey: 'b-hunt',
+    emoji: '🏃',
+    name: 'شکار بهسازانی',
+    desc: 'یک نفر مخفی شده، بقیه شکارچی‌ان. پیداش کن!',
+    color: '#22c55e',
+    players: '۲ تا ۱۰ نفر',
+    minPlayers: 2,
+    maxPlayers: 10,
+    rules: [
+      'یک بازیکن نقش «مخفی‌شونده» داره و بقیه شکارچی‌ان.',
+      'مخفی‌شونده نقشه محیط داره و باید مخفی بمونه.',
+      'شکارچیان باید در زمان مشخص مخفیگاه رو پیدا کنن.',
+      'سرنخ‌هایی در طول بازی آزاد می‌شه.',
+      'مخفی‌شونده با هر لحظه که مخفی بمونه امتیاز می‌گیره.',
+      'شکارچیان با پیدا کردن به موقع امتیاز می‌گیرن.',
+    ],
+    howTo: [
+      'اگر مخفی‌شونده‌ای: نقشه محیط رو ببین و مخفیگاه بچین.',
+      'اگر شکارچی هستی: نقشه بنا رو بررسی کن.',
+      'سرنخ‌ها رو دنبال کن.',
+      'تیمت رو از طریق چت هماهنگ کن.',
+      'مخفیگاه رو انتخاب کن یا پیدا کن.',
+    ],
+    scoring: 'مخفی‌شونده برای هر ثانیه مخفی ماندن امتیاز می‌گیره. شکارچیان برای پیدا کردن زودتر امتیاز بیشتری می‌گیرن.',
+  },
 ]
 
-// ── Single-player offline games (6) ─────────────────────────────────────────
+// ── Single-player offline games ──────────────────────────────────────────────
 const OFFLINE_GAMES: GameInfo[] = [
   PUBLIC_GAMES.find(g => g.id === 'guess')!,
   PUBLIC_GAMES.find(g => g.id === 'memory')!,
@@ -488,7 +515,7 @@ const DETAIL_TABS = [
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 function GameRow({ game, onClick }: { game: GameInfo; onClick: () => void }) {
-  const art = game.behsazanKey ? BEHSAZAN_ART[game.behsazanKey] : game.artKey ? MISSION_ART[game.artKey] : undefined
+  const art = game.behsazanKey ? BEHSAZAN_ART[game.behsazanKey] : game.artKey ? GAME_ASSETS[game.artKey] : undefined
   return (
     <button
       onClick={onClick}
@@ -516,7 +543,7 @@ function GameRow({ game, onClick }: { game: GameInfo; onClick: () => void }) {
 
 function BottomSheet({ game, onClose }: { game: GameInfo; onClose: () => void }) {
   const [detailTab, setDetailTab] = useState('rules')
-  const art = game.behsazanKey ? BEHSAZAN_ART[game.behsazanKey] : game.artKey ? MISSION_ART[game.artKey] : undefined
+  const art = game.behsazanKey ? BEHSAZAN_ART[game.behsazanKey] : game.artKey ? GAME_ASSETS[game.artKey] : undefined
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }

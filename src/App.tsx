@@ -33,6 +33,7 @@ import AdminDashboard from './screens/admin/AdminDashboard'
 import ProfilePage from './screens/ProfilePage'
 import NameFamilyGame from './screens/NameFamilyGame'
 import XPToast, { type XPEvent } from './components/XPToast'
+import SplashScreen from './screens/SplashScreen'
 
 export interface OnlineSession {
   code: string
@@ -138,6 +139,7 @@ interface BehsazaniSession {
 }
 
 export default function App() {
+  const [splashDone, setSplashDone] = useState(false)
   const localEngine = useGameEngine()
   const { state, dispatch } = localEngine
   const [session, setSession] = useState<OnlineSession | null>(null)
@@ -205,6 +207,8 @@ export default function App() {
 
   return (
     <div className="h-full overflow-hidden game-bg" dir="rtl">
+      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+
       {/* ── Solo game overlay ── */}
       {soloGameId === 'hide_seek' && (
         <HideSeekGame onExit={() => setSoloGameId(null)} />

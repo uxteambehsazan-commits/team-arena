@@ -295,6 +295,38 @@ html, body {
   50%  { opacity: 1; }
   100% { transform: rotate(360deg); opacity: 0.6; }
 }
+@keyframes avatar-aura-flicker {
+  0%,100% { opacity: 0.7; transform: scale(1) rotate(0deg); }
+  25%     { opacity: 1;   transform: scale(1.08) rotate(3deg); }
+  75%     { opacity: 0.8; transform: scale(1.04) rotate(-2deg); }
+}
+@keyframes avatar-aura-shimmer {
+  0%   { opacity: 0.4; transform: scale(1); filter: hue-rotate(0deg); }
+  50%  { opacity: 0.9; transform: scale(1.12); filter: hue-rotate(180deg); }
+  100% { opacity: 0.4; transform: scale(1); filter: hue-rotate(360deg); }
+}
+
+/* fire aura */
+.avatar-aura-fire {
+  background: radial-gradient(circle, rgba(239,68,68,0.55) 0%, rgba(251,146,60,0.35) 50%, transparent 70%);
+  animation: avatar-aura-flicker 1.4s ease-in-out infinite;
+}
+/* champion aura */
+.avatar-aura-champion {
+  background: radial-gradient(circle, rgba(168,85,247,0.6) 0%, rgba(139,92,246,0.3) 50%, transparent 70%);
+  animation: avatar-aura-pulse 2s ease-in-out infinite;
+}
+/* ice aura */
+.avatar-aura-ice {
+  background: radial-gradient(circle, rgba(147,197,253,0.5) 0%, rgba(96,165,250,0.25) 50%, transparent 70%);
+  animation: avatar-aura-pulse 2.4s ease-in-out infinite;
+}
+/* galaxy aura */
+.avatar-aura-galaxy {
+  background: conic-gradient(rgba(168,85,247,0.4), rgba(59,130,246,0.4), rgba(236,72,153,0.4), rgba(168,85,247,0.4));
+  animation: avatar-aura-shimmer 3s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .avatar-aura { animation: none !important; }
 }

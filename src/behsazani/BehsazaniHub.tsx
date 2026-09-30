@@ -11,26 +11,9 @@ import OneWordGame from './games/OneWordGame'
 import ITQuizGame from './games/ITQuizGame'
 import BehsazanHuntGame from './games/BehsazanHuntGame'
 import NaghghashbashiGame from './games/NaghghashbashiGame'
-import artBMafia      from '../imports/art-b-mafia.png'
-import artBSpy        from '../imports/art-b-spy.png'
-import artBCouncil    from '../imports/art-b-council.png'
-import artBCodebreak  from '../imports/art-b-codebreak.png'
-import artBSecretcode from '../imports/art-b-secretcode.png'
-import artBOneword    from '../imports/art-b-oneword.png'
-import artBDesigner   from '../imports/art-b-designer.png'
-import artBBigrace    from '../imports/art-b-bigrace.png'
+import { GAME_ASSETS } from '../lib/gameAssets'
 
-const GAME_ART: Record<string, string> = {
-  behsazani_mafia:            artBMafia,
-  behsazani_spy:              artBSpy,
-  behsazani_project_council:  artBCouncil,
-  behsazani_code_breakers:    artBCodebreak,
-  behsazani_project_code:     artBSecretcode,
-  behsazani_one_word:         artBOneword,
-  behsazani_it_quiz:          artBBigrace,
-  behsazani_hunt:             artBBigrace,
-  behsazani_naghghashi:       artBDesigner,
-}
+const GAME_ART = GAME_ASSETS
 
 const base = import.meta.env.BASE_URL ?? '/'
 const castleBg = `${base}imgs/Bg-1.jpg`

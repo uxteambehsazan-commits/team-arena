@@ -6,7 +6,7 @@
 
 export type NfMode = 'SINGLE_PLAYER_CPU' | 'ONLINE_MULTIPLAYER'
 export type NfDifficulty = 'EASY' | 'MEDIUM' | 'HARD'
-export type NfPhase = 'lobby' | 'round_playing' | 'round_locked' | 'score_breakdown' | 'game_over'
+export type NfPhase = 'lobby' | 'round_playing' | 'round_locked' | 'validation' | 'score_breakdown' | 'game_over'
 export type NfSubmitState = 'NOT_STARTED' | 'ANSWERING' | 'SUBMITTED' | 'TIME_EXPIRED'
 
 export interface NfCategory {
@@ -64,13 +64,16 @@ export interface NfPublicState {
   gameWinner: string | null
   isGameTie: boolean
   seq: number
+  // set during validation phase
+  revealedAnswers?: Record<string, Record<string, string>>  // playerId -> catId -> raw answer
+  validationDeadline?: number  // epoch ms
 }
 
 // ─── SCORE RULES ─────────────────────────────────────────────────────────────
 
 export const SCORE_RULES = {
   uniqueAnswer: 150,
-  duplicateAnswer: 50,
+  duplicateAnswer: 100,
   invalidAnswer: 0,
   emptyAnswer: 0,
   wrongLetter: 0,
@@ -584,4 +587,129 @@ export function determineWinner(
 // ─── ROUND DURATION ───────────────────────────────────────────────────────────
 
 export const ROUND_DURATION_MS = 60_000  // 60 seconds
+export const VALIDATION_DURATION_MS = 30_000  // 30 seconds peer-review window
 export const DEFAULT_TOTAL_ROUNDS = 3
+
+// ─── VOTE-BASED SCORING ───────────────────────────────────────────────────────
+
+type VoteOutcome = 'valid' | 'invalid' | 'tied' | 'no_votes' | 'tech_invalid'
+
+export function scoreRoundWithVotes(
+  letter: string,
+  categories: NfCategory[],
+  playerAnswers: Record<string, Record<string, string>>,
+  playerNames: Record<string, string>,
+  votes: Record<string, Record<string, 'valid' | 'invalid'>>,  // `${pid}::${catId}` -> voterId -> vote
+): NfRoundResult {
+  const playerIds = Object.keys(playerAnswers)
+
+  // Step 1: Technical validation
+  const validated: Record<string, Record<string, NfValidationResult>> = {}
+  for (const pid of playerIds) {
+    validated[pid] = {}
+    for (const cat of categories) {
+      validated[pid][cat.id] = validateAnswer(playerAnswers[pid]?.[cat.id] ?? '', letter)
+    }
+  }
+
+  // Step 2: Apply peer votes → determine outcome per answer
+  const outcomes: Record<string, Record<string, VoteOutcome>> = {}
+  for (const pid of playerIds) {
+    outcomes[pid] = {}
+    for (const cat of categories) {
+      if (!validated[pid][cat.id].valid) { outcomes[pid][cat.id] = 'tech_invalid'; continue }
+      const key = `${pid}::${cat.id}`
+      const catVotes = votes[key] ?? {}
+      const valid = Object.values(catVotes).filter(v => v === 'valid').length
+      const invalid = Object.values(catVotes).filter(v => v === 'invalid').length
+      if (valid === 0 && invalid === 0) outcomes[pid][cat.id] = 'no_votes'
+      else if (valid > invalid) outcomes[pid][cat.id] = 'valid'
+      else if (invalid > valid) outcomes[pid][cat.id] = 'invalid'
+      else outcomes[pid][cat.id] = 'tied'
+    }
+  }
+
+  // Step 3: Uniqueness among peer-VALID answers per category
+  const catValidGroups: Record<string, Record<string, string[]>> = {}
+  for (const cat of categories) {
+    catValidGroups[cat.id] = {}
+    for (const pid of playerIds) {
+      if (outcomes[pid][cat.id] !== 'valid') continue
+      const norm = validated[pid][cat.id].normalizedValue
+      if (!catValidGroups[cat.id][norm]) catValidGroups[cat.id][norm] = []
+      catValidGroups[cat.id][norm].push(pid)
+    }
+  }
+
+  // Step 4: Score per player
+  const playerResults: NfPlayerRoundResult[] = playerIds.map(pid => {
+    const answers: Record<string, NfAnswerResult> = {}
+    let roundTotal = 0
+
+    for (const cat of categories) {
+      const v = validated[pid][cat.id]
+      const raw = playerAnswers[pid]?.[cat.id] ?? ''
+      const outcome = outcomes[pid][cat.id]
+      const key = `${pid}::${cat.id}`
+      const catVotes = votes[key] ?? {}
+      const validVotes = Object.values(catVotes).filter(v => v === 'valid').length
+      const invalidVotes = Object.values(catVotes).filter(v => v === 'invalid').length
+
+      if (outcome === 'tech_invalid') {
+        answers[cat.id] = {
+          categoryId: cat.id, categoryLabel: cat.label,
+          rawAnswer: raw, normalizedAnswer: v.normalizedValue,
+          validation: v, isUnique: false, duplicateWith: [],
+          score: 0,
+          scoreReason: raw.trim() ? 'پاسخ نامعتبر' : 'پاسخ خالی',
+          scoreDetails: [raw.trim() ? `× ${getValidationMessage(v)}` : '× پاسخ خالی'],
+        }
+        continue
+      }
+
+      if (outcome !== 'valid') {
+        const reason = outcome === 'invalid' ? 'رأی نامعتبر از بازیکنان'
+          : outcome === 'tied' ? 'آرا مساوی — ۰ امتیاز'
+          : 'بدون رأی — ۰ امتیاز'
+        answers[cat.id] = {
+          categoryId: cat.id, categoryLabel: cat.label,
+          rawAnswer: raw, normalizedAnswer: v.normalizedValue,
+          validation: v, isUnique: false, duplicateWith: [],
+          score: 0,
+          scoreReason: reason,
+          scoreDetails: [
+            `✓ پاسخ فنی معتبر: "${v.normalizedValue}"`,
+            `رأی معتبر: ${validVotes} | رأی نامعتبر: ${invalidVotes}`,
+            `× ${reason}`,
+          ],
+        }
+        continue
+      }
+
+      const norm = v.normalizedValue
+      const group = catValidGroups[cat.id][norm] ?? []
+      const others = group.filter(p => p !== pid)
+      const isUnique = others.length === 0
+      const score = isUnique ? SCORE_RULES.uniqueAnswer : SCORE_RULES.duplicateAnswer
+      roundTotal += score
+
+      answers[cat.id] = {
+        categoryId: cat.id, categoryLabel: cat.label,
+        rawAnswer: raw, normalizedAnswer: norm,
+        validation: v, isUnique,
+        duplicateWith: others,
+        score,
+        scoreReason: isUnique ? `یکتا — ${SCORE_RULES.uniqueAnswer} امتیاز` : `مشترک — ${SCORE_RULES.duplicateAnswer} امتیاز`,
+        scoreDetails: [
+          `✓ پاسخ معتبر: "${norm}"`,
+          `رأی معتبر: ${validVotes} | رأی نامعتبر: ${invalidVotes}`,
+          isUnique ? '✓ پاسخ یکتا در میان پاسخ‌های معتبر' : `≈ با ${others.length} بازیکن دیگر مشترک`,
+        ],
+      }
+    }
+
+    return { playerId: pid, playerName: playerNames[pid] ?? pid, answers, roundTotal, cumulativeTotal: 0 }
+  })
+
+  return { round: 0, letter, players: playerResults, winner: null, isTie: false }
+}

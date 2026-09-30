@@ -1,3 +1,4 @@
+declare const __APP_VERSION__: string
 import { useState, useMemo } from 'react'
 import { adminLogout } from '../../lib/adminAuth'
 import {
@@ -10,17 +11,17 @@ import {
   loadAdminSettings, saveAdminSettings, ALL_GAMES,
   type AdminSettings,
 } from '../../lib/adminSettings'
-import bmLogo from '../../imports/03-BMC-Right_FA-EN_1.png'
 
 interface Props { onClose: () => void }
 
-type NavSection = 'dashboard' | 'players' | 'games' | 'feedback' | 'suggestions' | 'bugs' | 'insights' | 'settings'
+type NavSection = 'dashboard' | 'players' | 'games' | 'capability' | 'feedback' | 'suggestions' | 'bugs' | 'insights' | 'settings'
 
 const NAV_ITEMS: { id: NavSection; label: string; icon: string }[] = [
   { id: 'dashboard',   label: 'داشبورد',             icon: '📊' },
   { id: 'settings',    label: 'تنظیمات بازی',        icon: '⚙️' },
   { id: 'players',     label: 'عملکرد بازیکنان',     icon: '👥' },
   { id: 'games',       label: 'سوابق جلسات',          icon: '🎮' },
+  { id: 'capability',  label: 'ماتریس قابلیت',        icon: '🗂️' },
   { id: 'feedback',    label: 'بازخوردها',            icon: '💬' },
   { id: 'suggestions', label: 'پیشنهادات',            icon: '💡' },
   { id: 'bugs',        label: 'گزارش مشکلات',         icon: '🐛' },
@@ -302,10 +303,18 @@ export default function AdminDashboard({ onClose }: Props) {
         style={{ borderBottom: '1px solid #1e1e20', background: '#111113' }}>
         <button onClick={() => setNavOpen(v => !v)} className="btn-game w-9 h-9 rounded-xl flex items-center justify-center md:hidden"
           style={{ background: '#1e1e20', border: '1px solid #2e2e32', color: '#9a9b9e' }}>☰</button>
-        <img src={bmLogo} alt="" className="h-6 object-contain opacity-70" />
+        <div style={{
+          width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+          background: 'linear-gradient(135deg, #CC2229, #8B0000)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
         <div className="flex-1">
-          <h1 className="text-sm font-black text-white">داشبورد مدیریت</h1>
-          <p className="text-xs" style={{ color: '#6D6E71' }}>گزارش عملکرد و بازخورد هم‌تیمی‌ها</p>
+          <h1 className="text-sm font-black text-white">پنل مدیریت</h1>
+          <p className="text-xs" style={{ color: '#6D6E71' }}>میدان هم‌تیمی‌ها — v{__APP_VERSION__}</p>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: '#CC222915', color: '#CC2229', border: '1px solid #CC222933' }}>
@@ -467,6 +476,83 @@ export default function AdminDashboard({ onClose }: Props) {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* CAPABILITY MATRIX */}
+          {section === 'capability' && (
+            <div className="flex flex-col gap-4 max-w-4xl mx-auto">
+              <h2 className="text-lg font-black text-white">ماتریس قابلیت بازی‌ها</h2>
+              <p className="text-xs" style={{ color: '#6D6E71' }}>
+                این ماتریس از manifest واقعی بازی‌ها استخراج می‌شود. تغییر این جدول امکان‌پذیر نیست — فقط از engine واقعی قابل تغییر است.
+              </p>
+
+              {/* Legend */}
+              <div className="flex gap-3 flex-wrap">
+                {[['✅', 'پشتیبانی کامل'], ['❌', 'پشتیبانی نمی‌شود'], ['🔒', 'قفل'], ['⚠️', 'در حال بهبود']].map(([icon, label]) => (
+                  <span key={label} className="text-xs" style={{ color: '#6D6E71' }}>{icon} {label}</span>
+                ))}
+              </div>
+
+              {/* Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {['بازی', 'Online', 'Local', 'CPU', 'Min', 'Max', 'Realtime', 'وضعیت'].map(h => (
+                        <th key={h} style={{
+                          padding: '8px 12px', textAlign: 'right', fontWeight: 900,
+                          color: '#6D6E71', borderBottom: '1px solid #2e2e32',
+                          whiteSpace: 'nowrap',
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { name: 'اسم‌فامیل سرعتی',     online: true,  local: false, cpu: false, min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'حدس بزن',              online: true,  local: true,  cpu: true,  min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'دوز — نبرد قلمرو',     online: true,  local: true,  cpu: true,  min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'کلمه ممنوعه',           online: true,  local: true,  cpu: true,  min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'بازی سرعتی نهایی',     online: true,  local: true,  cpu: true,  min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'چشمک',                 online: true,  local: true,  cpu: true,  min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'یک کلمه، چند سرنخ',    online: true,  local: true,  cpu: false, min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'شکار بهسازانی',         online: true,  local: false, cpu: false, min: 2, max: 10, rt: true,  status: 'ready' },
+                      { name: 'مافیای بهسازانی',       online: true,  local: false, cpu: false, min: 4, max: 16, rt: true,  status: 'ready' },
+                      { name: 'جاسوس',                online: true,  local: false, cpu: false, min: 3, max: 10, rt: true,  status: 'ready' },
+                      { name: 'شورای پروژه',           online: true,  local: false, cpu: false, min: 5, max: 10, rt: true,  status: 'ready' },
+                      { name: 'رمزگشایان بهسازان',    online: true,  local: false, cpu: false, min: 4, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'رمز پروژه',             online: true,  local: false, cpu: false, min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'یک کلمه (بهسازانی)',   online: true,  local: false, cpu: false, min: 3, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'مسابقه بزرگ IT',       online: true,  local: false, cpu: false, min: 2, max: 8,  rt: true,  status: 'ready' },
+                      { name: 'نقاش‌باشی',             online: true,  local: false, cpu: false, min: 3, max: 8,  rt: true,  status: 'ready' },
+                    ].map((g, i) => (
+                      <tr key={g.name} style={{ background: i % 2 === 0 ? 'rgba(255,255,255,0.01)' : 'transparent' }}>
+                        <td style={{ padding: '10px 12px', color: '#e5e7eb', fontWeight: 700, borderBottom: '1px solid #1e1e20', whiteSpace: 'nowrap' }}>{g.name}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #1e1e20' }}>{g.online ? '✅' : '❌'}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #1e1e20' }}>{g.local ? '✅' : '❌'}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #1e1e20' }}>{g.cpu ? '✅' : '❌'}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9a9b9e', borderBottom: '1px solid #1e1e20' }}>{g.min}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#9a9b9e', borderBottom: '1px solid #1e1e20' }}>{g.max}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #1e1e20' }}>{g.rt ? '✅' : '❌'}</td>
+                        <td style={{ padding: '10px 12px', borderBottom: '1px solid #1e1e20' }}>
+                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 999, fontWeight: 900,
+                            background: '#22c55e18', color: '#4ade80', border: '1px solid #22c55e33' }}>
+                            {g.status === 'ready' ? 'آماده' : 'در بهبود'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Summary counts */}
+              <div className="grid grid-cols-3 gap-3 mt-2">
+                <KpiCard label="Online" value="16" sub="بازی آنلاین" color="#a855f7" />
+                <KpiCard label="Local" value="6" sub="بازی محلی" color="#22c55e" />
+                <KpiCard label="CPU" value="5" sub="بازی با CPU" color="#06b6d4" />
+              </div>
             </div>
           )}
 

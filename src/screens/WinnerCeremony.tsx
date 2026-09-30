@@ -8,6 +8,7 @@ import { saveGameScores } from '../lib/scores'
 import { isFeedbackEnabled } from '../lib/adminSettings'
 import { addGameResult, ACHIEVEMENTS, loadProfile } from '../lib/playerProfile'
 import { updateMissionsAfterGame } from '../lib/missions'
+import { markMissionCompleted } from '../lib/missionCompletion'
 const bgImage = `${import.meta.env.BASE_URL}imgs/Bg-1.jpg`
 
 interface Props {
@@ -40,6 +41,8 @@ export default function WinnerCeremony({ state, dispatch, onShowScores, onShowFe
       savedRef.current = true
       const gameId = `game-${Date.now()}`
       saveGameScores(state.players.map(p => ({ name: p.name, score: p.score })), gameId)
+      // Mark each played mission as completed for unlock tracking
+      ;(state.enabledMissions ?? []).forEach(id => markMissionCompleted(id))
     }
   }, [state.players])
 

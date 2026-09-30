@@ -6,22 +6,19 @@ import { api } from '../lib/supabase'
 import type { OnlineSession } from '../App'
 import MobileHeader from '../components/MobileHeader'
 import { loadAdminSettings } from '../lib/adminSettings'
+import { getUnlockState, isGameUnlocked } from '../lib/gameUnlock'
 import { getBehsazaniGame, STATUS_LABEL, STATUS_COLOR } from '../behsazani/registry'
 import { loadProfile, saveProfile } from '../lib/playerProfile'
 import { MISSIONS } from '../constants'
 
-/* ── Game artwork ── */
-import { MISSION_ART } from '../lib/missionArt'
-import GameModeIllustration, { PRIMARY_MODE_TO_GAME_MODE, GAME_MODE_LABEL } from '../components/GameModeIllustration'
-/* ── Behsazan-specific artwork ── */
-import artBDesigner   from '../imports/art-b-designer.png'
-import artBCouncil    from '../imports/art-b-council.png'
-import artBCodebreak  from '../imports/art-b-codebreak.png'
-import artBBigrace    from '../imports/art-b-bigrace.png'
-import artBMafia      from '../imports/art-b-mafia.png'
-import artBSecretcode from '../imports/art-b-secretcode.png'
-import artBSpy        from '../imports/art-b-spy.png'
-import artBOneword    from '../imports/art-b-oneword.png'
+/* ── Authoritative game assets (central registry) ── */
+import { GAME_KEY_TO_ASSET, GAME_ASSETS } from '../lib/gameAssets'
+/* ── Mode illustrations ── */
+import modeOnlineImg  from '../assets/modes/game-mode-online-multiplayer.png'
+import modeLocalImg   from '../assets/modes/game-mode-local-single-device.png'
+import modeCpuImg     from '../assets/modes/game-mode-single-player-cpu.png'
+/* ── Hero video ── */
+import heroBgMp4      from '../assets/hero-bg.mp4'
 
 import char1  from '../imports/image-29.png'
 import char2  from '../imports/ee103b69-ccc5-42ea-91da-aae0827e4549_2.png'
@@ -66,28 +63,31 @@ type GameEntry = {
   supportedModes: PrimaryMode[]
 }
 
+// All art now comes from the central registry — no scattered imports
+const A = GAME_KEY_TO_ASSET
+
 const GAMES_DATA: GameEntry[] = [
   /* ── بازی‌های عمومی ── */
-  { key: 'b-hunt',       behsazaniId: 'behsazani_hunt',                tab: 'behsazan', color: '#a855f7', type: 'آنلاین',      art: MISSION_ART['MEMORY'],     name: 'شکار بهسازانی',        desc: 'جاسازی کن یا پیدا کن — هر بازیکن دستگاه خودش!',       supportedModes: ['online_group'] },
-  { key: 'g-namefamily', soloGameId: 'name_family', tab: 'general',   color: '#06b6d4', type: 'CPU / آنلاین', art: MISSION_ART['NAME_FAMILY'], name: 'اسم‌فامیل',    desc: 'با حرف داده‌شده جواب بده — تک‌نفره با CPU یا گروهی آنلاین!', supportedModes: ['online_group', 'solo_cpu'] },
-  { key: 'g-speed',      missionId: 'SPEED',        tab: 'general',   color: '#f97316', type: 'سرعتی',      art: MISSION_ART['SPEED'],       name: 'حدس بزن',              desc: 'با سرعت کلمه رو از روی توضیحات حدس بزن!',              supportedModes: ['online_group', 'local_device'] },
-  { key: 'g-oneword',    missionId: 'ONE_WORD',     tab: 'general',   color: '#ffd60a', type: 'همزمان',     art: MISSION_ART['ONE_WORD'],    name: 'یک کلمه، چند سرنخ',   desc: 'با یک کلمه سرنخ بده تا تیمت حدس بزنه!',                supportedModes: ['online_group', 'local_device'] },
-  { key: 'g-final',      missionId: 'FINAL',        tab: 'general',   color: '#CC2229', type: 'استراتژیک',  art: MISSION_ART['FINAL'],       name: 'دوز — نبرد قلمرو',     desc: 'میدان نبرد رو تصرف کن و حریف رو شکست بده!',            supportedModes: ['online_group', 'local_device'] },
-  { key: 'g-logic',      missionId: 'LOGIC',        tab: 'general',   color: '#3b82f6', type: 'نوبتی',      art: MISSION_ART['LOGIC'],       name: 'کلمه ممنوعه',          desc: 'کلمه رو توضیح بده ولی از ممنوعه‌ها استفاده نکن!',      supportedModes: ['online_group', 'local_device'] },
-  { key: 'g-fastest',    missionId: 'FASTEST',      tab: 'general',   color: '#ef4444', type: 'همزمان',     art: MISSION_ART['FASTEST'],     name: 'بازی سرعتی نهایی',    desc: 'سریع‌ترین انگشت رو داری؟ اثبات کن!',                   supportedModes: ['online_group', 'local_device'] },
-  { key: 'g-team',       missionId: 'TEAM',         tab: 'general',   color: '#22c55e', type: 'تیمی',       art: MISSION_ART['TEAM'],        name: 'چشمک',                 desc: 'با چشمک تیمت رو راهنمایی کن و امتیاز بگیر!',           supportedModes: ['online_group', 'local_device'] },
+  { key: 'b-hunt',       behsazaniId: 'behsazani_hunt',                tab: 'behsazan', color: '#a855f7', type: 'آنلاین',      art: A['b-hunt'],       name: 'شکار بهسازانی',        desc: 'جاسازی کن یا پیدا کن — هر بازیکن دستگاه خودش!',       supportedModes: ['online_group'] },
+  { key: 'g-namefamily', tab: 'general', color: '#06b6d4', type: 'آنلاین گروهی', art: A['g-namefamily'], name: 'اسم‌فامیل', desc: 'با حرف داده‌شده جواب بده — گروهی آنلاین با رأی‌گیری بازیکنان!', supportedModes: ['online_group'] },
+  { key: 'g-speed',      missionId: 'SPEED',        tab: 'general',   color: '#f97316', type: 'سرعتی',      art: A['g-speed'],      name: 'حدس بزن',              desc: 'با سرعت کلمه رو از روی توضیحات حدس بزن!',              supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
+  { key: 'g-oneword',    missionId: 'ONE_WORD',     tab: 'general',   color: '#ffd60a', type: 'همزمان',     art: A['g-oneword'],    name: 'یک کلمه، چند سرنخ',   desc: 'با یک کلمه سرنخ بده تا تیمت حدس بزنه!',                supportedModes: ['online_group', 'local_device'] },
+  { key: 'g-final',      missionId: 'FINAL',        tab: 'general',   color: '#CC2229', type: 'استراتژیک',  art: A['g-final'],      name: 'دوز — نبرد قلمرو',     desc: 'میدان نبرد رو تصرف کن و حریف رو شکست بده!',            supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
+  { key: 'g-logic',      missionId: 'LOGIC',        tab: 'general',   color: '#3b82f6', type: 'نوبتی',      art: A['g-logic'],      name: 'کلمه ممنوعه',          desc: 'کلمه رو توضیح بده ولی از ممنوعه‌ها استفاده نکن!',      supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
+  { key: 'g-fastest',    missionId: 'FASTEST',      tab: 'general',   color: '#ef4444', type: 'همزمان',     art: A['g-fastest'],    name: 'بازی سرعتی نهایی',    desc: 'سریع‌ترین انگشت رو داری؟ اثبات کن!',                   supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
+  { key: 'g-team',       missionId: 'TEAM',         tab: 'general',   color: '#22c55e', type: 'تیمی',       art: A['g-team'],       name: 'چشمک',                 desc: 'با چشمک تیمت رو راهنمایی کن و امتیاز بگیر!',           supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
   /* ── بازی‌های آنلاین بهسازانی ── */
-  { key: 'b-mafia',      behsazaniId: 'behsazani_mafia',               tab: 'behsazan', color: '#CC2229', type: 'نقش مخفی',    art: artBMafia,      name: 'مافیای بهسازانی',     desc: 'مافیا رو پیدا کن قبل از اینکه دیر بشه!',               supportedModes: ['online_group'] },
-  { key: 'b-spy',        behsazaniId: 'behsazani_spy',                 tab: 'behsazan', color: '#3b82f6', type: 'استنتاج',     art: artBSpy,        name: 'جاسوس',               desc: 'جاسوس کیه؟ مکان رو حدس بزن قبل از شناسایی!',          supportedModes: ['online_group'] },
-  { key: 'b-council',    behsazaniId: 'behsazani_project_council',     tab: 'behsazan', color: '#a855f7', type: 'مأموریت',     art: artBCouncil,    name: 'شورای پروژه',         desc: 'تیم درست بفرست — خرابکار نبفرست!',                     supportedModes: ['online_group'] },
-  { key: 'b-codebreak',  behsazaniId: 'behsazani_code_breakers',       tab: 'behsazan', color: '#06b6d4', type: 'کلمه‌ای تیمی', art: artBCodebreak,  name: 'رمزگشایان بهسازان',   desc: 'کلمات تیمت رو با سرنخ پیدا کن!',                       supportedModes: ['online_group'] },
-  { key: 'b-secretcode', behsazaniId: 'behsazani_project_code',        tab: 'behsazan', color: '#ffd60a', type: 'رمزگشایی',    art: artBSecretcode, name: 'رمز پروژه',           desc: 'با سرنخ‌های پنهان، کد مخفی رو پیدا کن!',               supportedModes: ['online_group'] },
-  { key: 'b-oneword',    behsazaniId: 'behsazani_one_word',            tab: 'behsazan', color: '#22c55e', type: 'خلاقیت',      art: artBOneword,    name: 'یک کلمه',             desc: 'فقط یک کلمه سرنخ — سرنخ‌های تکراری حذف می‌شن!',       supportedModes: ['online_group'] },
-  { key: 'b-bigrace',    behsazaniId: 'behsazani_it_quiz',             tab: 'behsazan', color: '#8b5cf6', type: 'مسابقه',      art: artBBigrace,    name: 'مسابقه بزرگ IT',      desc: 'رقابت دانش فناوری اطلاعات — آماده‌ای؟',                supportedModes: ['online_group'] },
-  { key: 'b-naghghashi', behsazaniId: 'behsazani_naghghashi',          tab: 'behsazan', color: '#7c3aed', type: 'نقاشی حدسی',  art: artBDesigner,   name: 'نقاش‌باشی',            desc: 'نقاشی مخفی بکش — دسته‌بندی را حدس بزن!',               supportedModes: ['online_group'] },
+  { key: 'b-mafia',      behsazaniId: 'behsazani_mafia',               tab: 'behsazan', color: '#CC2229', type: 'نقش مخفی',    art: A['b-mafia'],      name: 'مافیای بهسازانی',     desc: 'مافیا رو پیدا کن قبل از اینکه دیر بشه!',               supportedModes: ['online_group'] },
+  { key: 'b-spy',        behsazaniId: 'behsazani_spy',                 tab: 'behsazan', color: '#3b82f6', type: 'استنتاج',     art: A['b-spy'],        name: 'جاسوس',               desc: 'جاسوس کیه؟ مکان رو حدس بزن قبل از شناسایی!',          supportedModes: ['online_group'] },
+  { key: 'b-council',    behsazaniId: 'behsazani_project_council',     tab: 'behsazan', color: '#a855f7', type: 'مأموریت',     art: A['b-council'],    name: 'شورای پروژه',         desc: 'تیم درست بفرست — خرابکار نبفرست!',                     supportedModes: ['online_group'] },
+  { key: 'b-codebreak',  behsazaniId: 'behsazani_code_breakers',       tab: 'behsazan', color: '#06b6d4', type: 'کلمه‌ای تیمی', art: A['b-codebreak'],  name: 'رمزگشایان بهسازان',   desc: 'کلمات تیمت رو با سرنخ پیدا کن!',                       supportedModes: ['online_group'] },
+  { key: 'b-secretcode', behsazaniId: 'behsazani_project_code',        tab: 'behsazan', color: '#ffd60a', type: 'رمزگشایی',    art: A['b-secretcode'], name: 'رمز پروژه',           desc: 'با سرنخ‌های پنهان، کد مخفی رو پیدا کن!',               supportedModes: ['online_group'] },
+  { key: 'b-oneword',    behsazaniId: 'behsazani_one_word',            tab: 'behsazan', color: '#22c55e', type: 'خلاقیت',      art: A['b-oneword'],    name: 'یک کلمه',             desc: 'فقط یک کلمه سرنخ — سرنخ‌های تکراری حذف می‌شن!',       supportedModes: ['online_group'] },
+  { key: 'b-bigrace',    behsazaniId: 'behsazani_it_quiz',             tab: 'behsazan', color: '#8b5cf6', type: 'مسابقه',      art: A['b-bigrace'],    name: 'مسابقه بزرگ IT',      desc: 'رقابت دانش فناوری اطلاعات — آماده‌ای؟',                supportedModes: ['online_group'] },
+  { key: 'b-naghghashi', behsazaniId: 'behsazani_naghghashi',          tab: 'behsazan', color: '#7c3aed', type: 'نقاشی حدسی',  art: A['b-naghghashi'], name: 'نقاش‌باشی',            desc: 'نقاشی مخفی بکش — دسته‌بندی را حدس بزن!',               supportedModes: ['online_group'] },
 ]
 
-type Step        = 'home' | 'mode-select' | 'avatar-select' | 'name-mode' | 'game-config'
+type Step        = 'home' | 'mode-select' | 'avatar-select' | 'name-mode' | 'game-config' | 'player2-setup'
 type PrimaryMode = 'online_group' | 'local_device' | 'solo_cpu'
 type PlayMode    = 'online' | 'join' | 'offline'
 type ConfigMode  = 'online' | 'local'
@@ -375,6 +375,8 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
   const [gameTab, setGameTab]       = useState<'general' | 'behsazan'>('behsazan')
   const [behsazanFilter, setBehsazanFilter] = useState<'all' | 'role' | 'word' | 'creative'>('all')
   const [primaryMode, setPrimaryMode] = useState<PrimaryMode>('online_group')
+  const [player2Name, setPlayer2Name] = useState('')
+  const [player2CharIdx, setPlayer2CharIdx] = useState(1)
   const { canInstall, triggerInstall } = usePWAInstall()
 
   // Refresh avatar from profile whenever we return to home step
@@ -554,6 +556,13 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
       return
     }
 
+    // Local device: require Player 2 name before starting
+    if (primaryMode === 'local_device' && step === 'game-config') {
+      setPlayer2Name('')
+      setStep('player2-setup')
+      return
+    }
+
     const missionIds = getSelectedMissionIds()
 
     if (configMode === 'online') {
@@ -569,12 +578,27 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
       return
     }
 
-    // offline: add AI and start
-    dispatch({ type: 'SET_ENABLED_MISSIONS', ids: missionIds.filter(id => { const m = MISSIONS_MAP[id]; return m && m.minPlayers <= 2 }) })
+    // This path shouldn't be reached for local_device (intercepted above)
+    // but kept as fallback for solo_cpu mode
+    const missionIdsFinal = getSelectedMissionIds()
+    dispatch({ type: 'SET_ENABLED_MISSIONS', ids: missionIdsFinal.filter(id => { const m = MISSIONS_MAP[id]; return m && m.minPlayers <= 2 }) })
     dispatch({ type: 'SET_DIFFICULTY', difficulty })
     dispatch({ type: 'CREATE_GAME', name: name.trim(), avatar: avatarStr, colorIndex: colorIdx })
     setTimeout(() => {
       dispatch({ type: 'ADD_PLAYER', name: 'هوش مصنوعی', avatar: '7', colorIndex: 1 })
+      dispatch({ type: 'START_GAME' })
+    }, 50)
+  }
+
+  function handleStartLocalGame() {
+    const avatarStr = String(charIdx)
+    const p2Name = player2Name.trim() || 'بازیکن ۲'
+    const missionIds = getSelectedMissionIds()
+    dispatch({ type: 'SET_ENABLED_MISSIONS', ids: missionIds.filter(id => { const m = MISSIONS_MAP[id]; return m && m.minPlayers <= 2 }) })
+    dispatch({ type: 'SET_DIFFICULTY', difficulty })
+    dispatch({ type: 'CREATE_GAME', name: name.trim(), avatar: avatarStr, colorIndex: colorIdx })
+    setTimeout(() => {
+      dispatch({ type: 'ADD_PLAYER', name: p2Name, avatar: String(player2CharIdx), colorIndex: player2CharIdx })
       dispatch({ type: 'START_GAME' })
     }, 50)
   }
@@ -587,14 +611,27 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
   if (step === 'home') return (
     <div className="h-full flex flex-col relative overflow-hidden" dir="rtl">
 
-      {/* Background */}
-      <img src={bgImg} alt="" aria-hidden
-        className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none select-none"
-        style={{ zIndex: 0, opacity: 0.2 }}
-      />
+      {/* Hero media container */}
+      <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 0 }}>
+        {/* Fallback image (shown while video loads or if unsupported) */}
+        <img src={bgImg} alt="" aria-hidden
+          className="absolute inset-0 w-full h-full object-cover object-top"
+          style={{ opacity: 0.25 }}
+        />
+        {/* Hero video — autoplay, muted, looped, above fallback */}
+        <video
+          src={heroBgMp4}
+          autoPlay muted loop playsInline
+          preload="metadata"
+          className="absolute inset-0 w-full h-full object-cover object-top"
+          style={{ opacity: 0.32 }}
+          aria-hidden
+        />
+      </div>
+      {/* Overlay gradient */}
       <div className="absolute inset-0 pointer-events-none" style={{
         zIndex: 1,
-        background: 'linear-gradient(to bottom, rgba(17,17,18,0.7) 0%, rgba(17,17,18,0.1) 30%, rgba(17,17,18,0.25) 60%, rgba(17,17,18,0.92) 80%, #111112 100%)',
+        background: 'linear-gradient(to bottom, rgba(17,17,18,0.6) 0%, rgba(17,17,18,0.05) 30%, rgba(17,17,18,0.2) 60%, rgba(17,17,18,0.92) 80%, #111112 100%)',
       }} />
 
       {/* Shooting star */}
@@ -823,10 +860,10 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
     const modeGameCount = (pm: PrimaryMode) =>
       GAMES_DATA.filter(g => !adminDisabledForCount.includes(g.key) && g.supportedModes.includes(pm)).length
 
-    const PRIMARY_MODES: { id: PrimaryMode; icon: string; title: string; subtitle: string; desc: string; accent: string }[] = [
+    const PRIMARY_MODES: { id: PrimaryMode; img: string; title: string; subtitle: string; desc: string; accent: string }[] = [
       {
         id: 'online_group',
-        icon: '🌐',
+        img: modeOnlineImg,
         title: 'بازی آنلاین گروهی',
         subtitle: 'هر بازیکن دستگاه خودش',
         desc: 'با هم‌تیمی‌ها از هر جایی بازی کن — هر نفر با گوشی خودش وصل می‌شه',
@@ -834,7 +871,7 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
       },
       {
         id: 'local_device',
-        icon: '📱',
+        img: modeLocalImg,
         title: 'بازی محلی با یک دستگاه',
         subtitle: 'پاس دادنی — دور میز',
         desc: 'با دوستانت کنار هم بازی کن — همه دور یک گوشی جمع می‌شن',
@@ -842,7 +879,7 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
       },
       {
         id: 'solo_cpu',
-        icon: '🤖',
+        img: modeCpuImg,
         title: 'بازی انفرادی با CPU',
         subtitle: 'تنهایی مقابل هوش مصنوعی',
         desc: 'تک‌نفره بازی کن و مهارتت رو محک بزن — CPU حریفته',
@@ -898,14 +935,15 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
                   }}
                 >
                   <div style={{
-                    width: 72, height: 72, borderRadius: 18, flexShrink: 0,
-                    background: `${m.accent}12`,
+                    width: 64, height: 64, borderRadius: 18, flexShrink: 0,
+                    background: `${m.accent}18`,
                     border: `1.5px solid ${m.accent}44`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    overflow: 'hidden',
                     boxShadow: `0 0 20px ${m.accent}30`,
-                    padding: 6,
                   }}>
-                    <GameModeIllustration mode={PRIMARY_MODE_TO_GAME_MODE[m.id]} size={60} />
+                    <img src={m.img} alt={m.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
@@ -1084,10 +1122,10 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
                 background: playMode === 'online' ? 'rgba(168,85,247,0.1)' : 'rgba(34,197,94,0.1)',
                 border: `1px solid ${playMode === 'online' ? 'rgba(168,85,247,0.3)' : 'rgba(34,197,94,0.3)'}`,
               }}>
-                <GameModeIllustration mode={PRIMARY_MODE_TO_GAME_MODE[primaryMode]} size={28} />
+                <span style={{ fontSize: 16 }}>{primaryMode === 'online_group' ? '🌐' : primaryMode === 'local_device' ? '📱' : '🤖'}</span>
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 900, color: playMode === 'online' ? '#c084fc' : '#4ade80', margin: 0 }}>
-                    {GAME_MODE_LABEL[PRIMARY_MODE_TO_GAME_MODE[primaryMode]]}
+                    {primaryMode === 'online_group' ? 'بازی آنلاین گروهی' : primaryMode === 'local_device' ? 'بازی محلی با یک دستگاه' : 'بازی انفرادی با CPU'}
                   </p>
                   <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: '2px 0 0', fontWeight: 500 }}>
                     <button onClick={() => setStep('mode-select')} style={{ background: 'none', border: 'none', padding: 0, color: 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: 10 }}>✏️ تغییر حالت</button>
@@ -1140,6 +1178,79 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
   }
 
   /* ════════════════════════════════════════════════
+     STEP 2.5: Player 2 Setup (Local Device only)
+  ════════════════════════════════════════════════ */
+  if (step === 'player2-setup') {
+    const p2char = CHARS[player2CharIdx]
+    const canStart = player2Name.trim().length >= 2
+    return (
+      <div className="h-full flex flex-col relative overflow-hidden" dir="rtl"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <CastleBg />
+        <div className="relative z-10 flex-shrink-0">
+          <MobileHeader title="بازیکن دوم" onBack={() => setStep('game-config')} />
+        </div>
+
+        <div className="relative z-10 flex-1 overflow-y-auto">
+          <div className="flex flex-col gap-5 px-5 pt-4 pb-6 max-w-md mx-auto">
+
+            {/* Info banner */}
+            <div style={{ padding: '12px 16px', borderRadius: 16, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)' }}>
+              <p style={{ color: '#4ade80', fontSize: 13, fontWeight: 700, margin: '0 0 4px' }}>📱 بازی محلی با یک دستگاه</p>
+              <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+                بازیکن اول: <strong style={{ color: '#fff' }}>{name.trim() || 'بازیکن ۱'}</strong>
+                <br />نام بازیکن دوم را وارد کنید. هر بازیکن نوبتی دستگاه را پاس می‌دهد.
+              </p>
+            </div>
+
+            {/* P2 Avatar picker */}
+            <div>
+              <p className="text-xs font-bold mb-3" style={{ color: 'rgba(255,255,255,0.45)' }}>شخصیت بازیکن دوم</p>
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                {CHARS.map((ch, i) => (
+                  <button key={i} onClick={() => setPlayer2CharIdx(i)}
+                    className="btn-game flex-shrink-0"
+                    style={{
+                      width: 52, height: 52, borderRadius: 16, overflow: 'hidden', padding: 0,
+                      border: `2px solid ${player2CharIdx === i ? ch.accent : 'rgba(255,255,255,0.08)'}`,
+                      background: player2CharIdx === i ? `${ch.accent}18` : 'rgba(255,255,255,0.04)',
+                      boxShadow: player2CharIdx === i ? `0 0 12px ${ch.accent}55` : 'none',
+                    }}>
+                    <img src={ch.src} alt={ch.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </button>
+                ))}
+              </div>
+              <p className="text-center mt-2 text-xs font-bold" style={{ color: p2char.accent }}>{p2char.name}</p>
+            </div>
+
+            {/* P2 name input */}
+            <div>
+              <p className="text-xs font-bold mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>نام بازیکن دوم</p>
+              <FancyInput
+                value={player2Name}
+                onChange={v => setPlayer2Name(v)}
+                placeholder="نام بازیکن دوم..."
+                autoFocus
+                onEnter={() => canStart && handleStartLocalGame()}
+              />
+              {player2Name.trim().length > 0 && player2Name.trim().length < 2 && (
+                <p className="text-xs mt-1.5" style={{ color: '#ef4444' }}>حداقل ۲ حرف</p>
+              )}
+              {player2Name.trim() === name.trim() && player2Name.trim().length > 0 && (
+                <p className="text-xs mt-1.5" style={{ color: '#f59e0b' }}>⚠️ نام بازیکن دوم نباید با بازیکن اول یکسان باشد</p>
+              )}
+            </div>
+
+            <CtaBtn onClick={handleStartLocalGame} disabled={!canStart || player2Name.trim() === name.trim()} accent="#22c55e">
+              شروع بازی →
+            </CtaBtn>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* ════════════════════════════════════════════════
      STEP 3: Game Config — mode-filtered catalog
   ════════════════════════════════════════════════ */
   const adminDisabled = loadAdminSettings().disabledGames
@@ -1183,13 +1294,10 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
             style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
             →
           </button>
-          <div className="text-center flex-1 px-3 flex flex-col items-center gap-0.5">
-            <div className="flex items-center gap-1.5 justify-center">
-              <GameModeIllustration mode={PRIMARY_MODE_TO_GAME_MODE[primaryMode]} size={16} />
-              <p className="text-xs font-bold" style={{ color: primaryMode === 'online_group' ? 'rgba(168,85,247,0.8)' : primaryMode === 'local_device' ? 'rgba(34,197,94,0.8)' : 'rgba(6,182,212,0.8)' }}>
-                {GAME_MODE_LABEL[PRIMARY_MODE_TO_GAME_MODE[primaryMode]]}
-              </p>
-            </div>
+          <div className="text-center flex-1 px-3">
+            <p className="text-xs font-bold" style={{ color: primaryMode === 'online_group' ? 'rgba(168,85,247,0.8)' : primaryMode === 'local_device' ? 'rgba(34,197,94,0.8)' : 'rgba(6,182,212,0.8)' }}>
+              {primaryMode === 'online_group' ? '🌐 بازی آنلاین گروهی' : primaryMode === 'local_device' ? '📱 بازی محلی' : '🤖 تنهایی با CPU'}
+            </p>
             <p className="font-black text-white text-sm leading-tight mt-0.5">یک بازی انتخاب کن!</p>
           </div>
           <div className="flex items-center gap-2 rounded-2xl px-2.5 py-1.5"
@@ -1273,14 +1381,16 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
           {/* ── Game cards — 2-column grid ── */}
           <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             {tabGames.map(g => {
+              const unlockState = getUnlockState(g.key)
+              const locked   = unlockState.status === 'locked'
               const sel      = selectedGameKeys.includes(g.key)
-              const disabled = !sel && selectedGameKeys.length >= MAX_MISSIONS
+              const disabled = locked || (!sel && selectedGameKeys.length >= MAX_MISSIONS)
               return (
                 <button
                   key={g.key}
-                  onClick={() => !disabled && toggleGame(g.key)}
+                  onClick={() => !disabled && !locked && toggleGame(g.key)}
                   className="btn-game w-full text-right"
-                  style={{ opacity: disabled ? 0.45 : 1 }}
+                  style={{ opacity: disabled && !locked ? 0.45 : 1 }}
                 >
                   <div className="flex flex-col items-center gap-2 p-3 rounded-2xl h-full"
                     style={{
@@ -1292,6 +1402,31 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
                       minHeight: 140,
                       position: 'relative',
                     }}>
+
+                    {/* Lock overlay */}
+                    {locked && (
+                      <div className="absolute inset-0 rounded-2xl flex flex-col items-center justify-center gap-1.5"
+                        style={{ background: 'rgba(10,8,14,0.85)', backdropFilter: 'blur(3px)', zIndex: 5, padding: '8px 10px' }}>
+                        <span style={{ fontSize: 20 }}>🔒</span>
+                        {unlockState.rule?.type === 'all_missions_completed' && unlockState.missionProgress ? (
+                          <>
+                            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.85)', fontWeight: 800, textAlign: 'center', margin: 0, lineHeight: 1.4 }}>
+                              ماموریت‌ها
+                            </p>
+                            <p style={{ fontSize: 11, color: '#CC2229', fontWeight: 900, textAlign: 'center', margin: 0 }}>
+                              {unlockState.missionProgress.completed} از {unlockState.missionProgress.total}
+                            </p>
+                            <div style={{ width: '80%', height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.12)' }}>
+                              <div style={{ height: '100%', borderRadius: 2, background: '#CC2229', width: `${(unlockState.missionProgress.completed / unlockState.missionProgress.total) * 100}%`, transition: 'width 0.4s ease' }} />
+                            </div>
+                          </>
+                        ) : (
+                          <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.6)', fontWeight: 700, textAlign: 'center', padding: '0 4px', lineHeight: 1.4, margin: 0 }}>
+                            {unlockState.rule?.unlockConditionLabel ?? 'قفل شده'}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Selection check badge */}
                     {sel && (

@@ -224,6 +224,7 @@ export default function NaghghashbashiGame({
   const lastSeqRef = useRef(-1)
   const guessSubmitTime = useRef<Record<string, number>>({})
   const hostWordRef = useRef('')  // host only: the selected word
+  const pubRef = useRef<NaghPublicState>(EMPTY_PUB)  // always-current pub for closures
 
   // Stroke throttle
   const lastStrokeMs = useRef(0)
@@ -313,7 +314,21 @@ export default function NaghghashbashiGame({
     })
     ch.subscribe(s => { if (s === 'SUBSCRIBED') pubReadyRef.current = true })
     pubChRef.current = ch
-    return () => { supabase.removeChannel(ch); pubReadyRef.current = false; pubChRef.current = null }
+
+    // Periodic resend so reconnecting clients catch up
+    const heartbeat = setInterval(() => {
+      const s = pubRef.current
+      if (s.phase === 'lobby' || s.phase === 'game_over') return
+      if (!pubReadyRef.current) return
+      ch.send({ type: 'broadcast', event: 'nagh_state', payload: { state: s } }).catch(() => {})
+    }, 15000)
+
+    return () => {
+      clearInterval(heartbeat)
+      supabase.removeChannel(ch)
+      pubReadyRef.current = false
+      pubChRef.current = null
+    }
   }, [isOnline, isHost, roomCode])
 
   // ── Guests: listen to pub channel ────────────────────────────────────────
@@ -328,7 +343,13 @@ export default function NaghghashbashiGame({
       if (s.seq <= lastSeqRef.current) return
       lastSeqRef.current = s.seq
       setPub(s)
-    }).subscribe()
+      pubRef.current = s
+    }).subscribe(async status => {
+      if (status === 'SUBSCRIBED') {
+        // Request current state from host after subscribe (handles refresh/reconnect)
+        await ch.send({ type: 'broadcast', event: 'request_state', payload: {} }).catch(() => {})
+      }
+    })
     return () => { supabase.removeChannel(ch) }
   }, [isOnline, isHost, roomCode])
 
@@ -366,7 +387,7 @@ export default function NaghghashbashiGame({
       const candidates = generateCandidates(categoryId, word)
       const deadline = Date.now() + DRAW_TOTAL_SECONDS * 1000
       broadcastPub({
-        ...pub,
+        ...pubRef.current,  // always-fresh state, no stale closure
         phase: 'drawing',
         wordDifficulty: difficulty as 'easy' | 'medium' | 'hard',
         basePoints: points,
@@ -378,6 +399,14 @@ export default function NaghghashbashiGame({
         roundScores: {},
         correctWord: '',
       })
+    })
+    ch.on('broadcast', { event: 'request_state' }, () => {
+      // Reconnecting client requests current state — host resends immediately
+      const s = pubRef.current
+      if (s.phase === 'lobby') return
+      const ch2 = pubChRef.current
+      if (!ch2 || !pubReadyRef.current) return
+      ch2.send({ type: 'broadcast', event: 'nagh_state', payload: { state: s } }).catch(() => {})
     })
     ch.on('broadcast', { event: 'guess' }, ({ payload }: any) => {
       const { playerId, word, timestamp } = payload as { playerId: string; word: string; timestamp: number }
@@ -415,6 +444,7 @@ export default function NaghghashbashiGame({
     seqRef.current += 1
     const s = { ...state, seq: seqRef.current }
     setPub(s)
+    pubRef.current = s
     if (!isOnline) return
     const ch = pubChRef.current
     if (!ch || !pubReadyRef.current) return

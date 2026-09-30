@@ -75,7 +75,7 @@ const GAMES_DATA: GameEntry[] = [
   { key: 'g-final',      missionId: 'FINAL',        tab: 'general',   color: '#CC2229', type: 'استراتژیک',  art: A['g-final'],      name: 'دوز — نبرد قلمرو',     desc: 'میدان نبرد رو تصرف کن و حریف رو شکست بده!',            supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
   { key: 'g-logic',      missionId: 'LOGIC',        tab: 'general',   color: '#3b82f6', type: 'نوبتی',      art: A['g-logic'],      name: 'کلمه ممنوعه',          desc: 'کلمه رو توضیح بده ولی از ممنوعه‌ها استفاده نکن!',      supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
   { key: 'g-fastest',    missionId: 'FASTEST',      tab: 'general',   color: '#ef4444', type: 'همزمان',     art: A['g-fastest'],    name: 'بازی سرعتی نهایی',    desc: 'سریع‌ترین انگشت رو داری؟ اثبات کن!',                   supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
-  { key: 'g-team',       missionId: 'TEAM',         tab: 'general',   color: '#22c55e', type: 'تیمی',       art: A['g-team'],       name: 'چشمک',                 desc: 'با چشمک تیمت رو راهنمایی کن و امتیاز بگیر!',           supportedModes: ['online_group', 'local_device', 'solo_cpu'] },
+  { key: 'g-team',       missionId: 'TEAM',         tab: 'general',   color: '#22c55e', type: 'تیمی',       art: A['g-team'],       name: 'چشمک',                 desc: 'با چشمک تیمت رو راهنمایی کن و امتیاز بگیر!',           supportedModes: ['online_group', 'local_device'] },
   /* ── بازی‌های آنلاین بهسازانی ── */
   { key: 'b-mafia',      behsazaniId: 'behsazani_mafia',               tab: 'behsazan', color: '#CC2229', type: 'نقش مخفی',    art: A['b-mafia'],      name: 'مافیای بهسازانی',     desc: 'مافیا رو پیدا کن قبل از اینکه دیر بشه!',               supportedModes: ['online_group'] },
   { key: 'b-spy',        behsazaniId: 'behsazani_spy',                 tab: 'behsazan', color: '#3b82f6', type: 'استنتاج',     art: A['b-spy'],        name: 'جاسوس',               desc: 'جاسوس کیه؟ مکان رو حدس بزن قبل از شناسایی!',          supportedModes: ['online_group'] },
@@ -1272,8 +1272,10 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
     }
     if (primaryMode === 'local_device') {
       if (g.tab === 'behsazan') return false
+      // Games that explicitly support local_device (multi-player pass-device) bypass minPlayers=2 check
+      if (!g.supportedModes.includes('local_device')) return false
       const m = g.missionId ? MISSIONS_MAP[g.missionId] : null
-      if (m && m.minPlayers > 2) return false
+      if (m && m.minPlayers > 2 && !g.supportedModes.includes('local_device')) return false
     }
     return true
   })

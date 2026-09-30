@@ -18,6 +18,7 @@ export const GENERAL_GAME_KEYS = new Set([
 // ── Behsazani starter games — unlocked from day one ──────────────────────────
 const BEHSAZANI_STARTER = new Set([
   'b-mafia',
+  'b-naghghashi',
 ])
 
 // ── Rule types ───────────────────────────────────────────────────────────────

@@ -166,14 +166,17 @@ export default function AdminDashboard({ onClose }: Props) {
   const [msgCompose, setMsgCompose] = useState(false)
   const [msgTitle, setMsgTitle] = useState('')
   const [msgBody, setMsgBody] = useState('')
-  const [msgType, setMsgType] = useState<MessageType>('info')
+  const [msgType, setMsgType] = useState<MessageType>('new_feature')
   const [msgPriority, setMsgPriority] = useState<MessagePriority>('normal')
   const [msgTarget, setMsgTarget] = useState<MessageTarget>('all')
   const [msgCta, setMsgCta] = useState('')
+  const [msgIsInternal, setMsgIsInternal] = useState(false)
+  const [msgBullets, setMsgBullets] = useState('')
   const [msgPreview, setMsgPreview] = useState(false)
   const [msgSendConfirm, setMsgSendConfirm] = useState<string | null>(null)
   const [msgSending, setMsgSending] = useState(false)
   const [msgSent, setMsgSent] = useState<string | null>(null)
+  const [msgSendError, setMsgSendError] = useState<string | null>(null)
 
   // ── Audit log state ───────────────────────────────────────────────────────
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(loadAuditLog)
@@ -269,29 +272,40 @@ export default function AdminDashboard({ onClose }: Props) {
   function handleSendMsg(id: string) {
     setMsgSending(true)
     setMsgSendConfirm(null)
+    setMsgSendError(null)
     setTimeout(() => {
-      dispatchMessage(id)
+      const result = dispatchMessage(id)
       refreshMessages()
       setMsgSending(false)
-      setMsgSent(id)
-      logAudit('MESSAGE_SENT', 'success', { target: id })
+      if (result.ok) {
+        setMsgSent(id)
+        logAudit('MESSAGE_SENT', 'success', { target: id })
+        setTimeout(() => setMsgSent(null), 3000)
+      } else {
+        setMsgSendError(result.reason ?? 'ارسال ناموفق')
+        logAudit('MESSAGE_SENT', 'failure', { target: id, detail: result.reason })
+        setTimeout(() => setMsgSendError(null), 6000)
+      }
       refreshAudit()
-      setTimeout(() => setMsgSent(null), 3000)
     }, 800)
   }
 
   function handleCreateMsg() {
     if (!msgTitle.trim() || !msgBody.trim()) return
+    const bullets = msgBullets.split('\n').map(l => l.trim()).filter(Boolean)
     const m = createMessage({
-      title: msgTitle, body: msgBody, type: msgType,
+      title: msgTitle, body: msgBody,
+      bullets: bullets.length > 0 ? bullets : undefined,
+      type: msgType,
       priority: msgPriority, target: msgTarget,
+      isInternal: msgIsInternal,
       ctaLabel: msgCta || undefined,
       createdBy: 'admin',
     })
     logAudit('MESSAGE_CREATED', 'success', { target: m.id, detail: msgTitle })
     refreshMessages()
     refreshAudit()
-    setMsgTitle(''); setMsgBody(''); setMsgCta('')
+    setMsgTitle(''); setMsgBody(''); setMsgCta(''); setMsgBullets('')
     setMsgCompose(false)
   }
 
@@ -306,23 +320,29 @@ export default function AdminDashboard({ onClose }: Props) {
   function sendReleaseAnnouncement(version: string) {
     const release = RELEASE_HISTORY.find(r => r.version === version)
     if (!release) return
-    const lines = [
-      release.summary,
-      release.features.length ? `\nقابلیت‌های جدید:\n${release.features.map(f => `• ${f}`).join('\n')}` : '',
-      release.improvements.length ? `\nبهبودها:\n${release.improvements.map(i => `• ${i}`).join('\n')}` : '',
-      release.bugFixes.length ? `\nرفع خطاها:\n${release.bugFixes.map(b => `• ${b}`).join('\n')}` : '',
-    ].filter(Boolean).join('')
+    // Build user-friendly bullets (no technical content)
+    const userBullets: string[] = [
+      ...(release.userBullets ?? []),
+      ...release.features.filter(f => release.userBullets?.length === 0).slice(0, 3),
+    ].filter(Boolean)
     const m = createMessage({
-      title: `نسخه جدید ${release.version} منتشر شد`,
-      body: lines,
-      type: 'version_update',
+      title: `✨ بهبودهای جدید در دسترس است`,
+      body: release.userSummary ?? release.summary,
+      bullets: userBullets.length > 0 ? userBullets : undefined,
+      type: 'new_feature',
       priority: 'normal',
       target: 'all',
+      isInternal: false,
+      ctaLabel: 'مشاهده بازی‌ها',
       createdBy: 'admin',
     })
-    dispatchMessage(m.id)
+    const result = dispatchMessage(m.id)
     refreshMessages()
-    logAudit('RELEASE_ANNOUNCEMENT_SENT', 'success', { target: `release:${version}` })
+    if (result.ok) {
+      logAudit('RELEASE_ANNOUNCEMENT_SENT', 'success', { target: `release:${version}` })
+    } else {
+      logAudit('RELEASE_ANNOUNCEMENT_SENT', 'failure', { target: `release:${version}`, detail: result.reason })
+    }
     refreshAudit()
   }
 
@@ -1193,10 +1213,36 @@ export default function AdminDashboard({ onClose }: Props) {
                     dir="rtl" className="rounded-xl px-3 py-2.5 text-sm text-white outline-none"
                     style={{ background: '#0e0e10', border: '1px solid #2e2e32' }} />
 
-                  <textarea value={msgBody} onChange={e => setMsgBody(e.target.value)} placeholder="متن پیام"
-                    dir="rtl" rows={4}
+                  <textarea value={msgBody} onChange={e => setMsgBody(e.target.value)} placeholder="متن خلاصه پیام (برای کاربر)"
+                    dir="rtl" rows={3}
                     className="rounded-xl px-3 py-2.5 text-sm text-white outline-none resize-none"
                     style={{ background: '#0e0e10', border: '1px solid #2e2e32' }} />
+
+                  <textarea value={msgBullets} onChange={e => setMsgBullets(e.target.value)}
+                    placeholder="bullet points (یک خط در هر bullet — اختیاری)"
+                    dir="rtl" rows={3}
+                    className="rounded-xl px-3 py-2.5 text-sm text-white outline-none resize-none"
+                    style={{ background: '#0e0e10', border: '1px solid #2e2e32', fontSize: 12 }} />
+
+                  {/* Internal toggle */}
+                  <button
+                    onClick={() => setMsgIsInternal(v => !v)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+                    style={{
+                      background: msgIsInternal ? '#ffd60a12' : '#22c55e12',
+                      border: `1px solid ${msgIsInternal ? '#ffd60a44' : '#22c55e44'}`,
+                    }}
+                  >
+                    <span style={{ fontSize: 18 }}>{msgIsInternal ? '🔒' : '📢'}</span>
+                    <div style={{ textAlign: 'right' }}>
+                      <p className="font-black text-sm" style={{ color: msgIsInternal ? '#ffd60a' : '#4ade80' }}>
+                        {msgIsInternal ? 'پیام داخلی سیستم' : 'اطلاع‌رسانی به کاربران'}
+                      </p>
+                      <p className="text-xs" style={{ color: '#6D6E71' }}>
+                        {msgIsInternal ? 'فقط در لاگ ادمین — به کاربران نمایش داده نمی‌شود' : 'بعد از ارسال، کاربران این پیام را دریافت می‌کنند'}
+                      </p>
+                    </div>
+                  </button>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
@@ -1307,14 +1353,24 @@ export default function AdminDashboard({ onClose }: Props) {
                         </span>
                       </div>
                       <p className="text-xs leading-5 line-clamp-2" style={{ color: '#9a9b9e' }}>{m.body}</p>
+                      {m.filterWarning && (
+                        <p className="text-xs p-2 rounded-lg" style={{ background: '#f8717120', color: '#f87171', border: '1px solid #f8717144' }}>
+                          ⚠️ {m.filterWarning}
+                        </p>
+                      )}
                       {m.status === 'sent' && (
                         <p className="text-xs" style={{ color: '#555' }}>
                           ارسال: {m.sentAt ? new Date(m.sentAt).toLocaleString('fa-IR') : '—'} ·
                           تحویل: {m.deliveredCount ?? 0}
                         </p>
                       )}
+                      {m.isInternal && (
+                        <p className="text-xs px-2 py-1 rounded-lg inline-flex items-center gap-1" style={{ background: '#ffd60a12', color: '#ffd60a', border: '1px solid #ffd60a33' }}>
+                          🔒 پیام داخلی — به کاربران ارسال نمی‌شود
+                        </p>
+                      )}
                       <div className="flex gap-2 mt-1">
-                        {m.status === 'draft' && (
+                        {(m.status === 'draft' || m.status === 'blocked') && !m.isInternal && (
                           <button onClick={() => setMsgSendConfirm(m.id)}
                             className="btn-game text-xs px-3 py-1.5 rounded-lg"
                             style={{ background: '#CC222920', border: '1px solid #CC2229', color: '#e84249' }}>
@@ -1351,6 +1407,13 @@ export default function AdminDashboard({ onClose }: Props) {
                         style={{ border: '1px solid #2e2e32', color: '#6D6E71' }}>انصراف</button>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Send error toast */}
+              {msgSendError && (
+                <div className="rounded-xl p-3 text-sm" style={{ background: '#f8717120', color: '#f87171', border: '1px solid #f8717144' }}>
+                  ⚠️ {msgSendError}
                 </div>
               )}
             </div>

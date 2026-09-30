@@ -106,7 +106,9 @@ export default function DozGame({ onExit }: Props) {
   const playerSymbol: Cell = 'X'
   const cpuSymbol: Cell    = 'O'
 
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium')
+  const [difficulty, setDifficulty] = useState<Difficulty>(
+    () => (localStorage.getItem('ta_cpu_difficulty') as Difficulty | null) ?? 'medium'
+  )
   const [board, setBoard] = useState<Cell[]>(Array(9).fill(null))
   const [turn, setTurn]   = useState<Turn>('player')
   const [phase, setPhase] = useState<Phase>('playing')
@@ -211,7 +213,7 @@ export default function DozGame({ onExit }: Props) {
           <p style={{color:'#6D6E71',fontSize:12,fontWeight:700,marginBottom:12,textAlign:'center'}}>سطح دشواری</p>
           <div style={{display:'flex',gap:10}}>
             {(['easy','medium','hard'] as Difficulty[]).map(d => (
-              <button key={d} onClick={() => setDifficulty(d)}
+              <button key={d} onClick={() => { setDifficulty(d); localStorage.setItem('ta_cpu_difficulty', d) }}
                 style={{
                   flex:1,padding:'12px 8px',borderRadius:14,cursor:'pointer',
                   fontWeight:900,fontSize:14,transition:'all 0.2s',
@@ -298,7 +300,7 @@ export default function DozGame({ onExit }: Props) {
             border:`1.5px solid ${turn==='player' && phase==='playing' ? '#4ade8055' : '#2e2e32'}`,
             transition:'all 0.25s',minWidth:90,
           }}>
-            <div style={{fontSize:36}}>{profile.avatar ? `👤` : '😊'}</div>
+            <div style={{fontSize:36}}>{profile.avatarId ? `👤` : '😊'}</div>
             <p style={{color:'#fff',fontWeight:900,fontSize:13,margin:0,textAlign:'center',maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
               {profile.name || 'شما'}
             </p>

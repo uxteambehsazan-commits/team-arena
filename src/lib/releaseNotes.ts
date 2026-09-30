@@ -9,6 +9,10 @@ export interface ReleaseNote {
   releaseDate: string
   status: ReleaseStatus
   summary: string
+  // User-facing (no technical content):
+  userSummary?: string
+  userBullets?: string[]
+  // Internal (technical — admin only):
   features: string[]
   improvements: string[]
   bugFixes: string[]
@@ -24,6 +28,13 @@ export const RELEASE_HISTORY: ReleaseNote[] = [
     releaseDate: '2026-09-30',
     status: 'live',
     summary: 'دوز با سه سطح CPU (آسان/متوسط/سخت، minimax)، بازسازی کامل چشمک به بازی نقش‌محور گروهی واقعی با سیستم اتهام، حذف CPU از چشمک.',
+    userSummary: 'دو بازی اساساً بهبود یافتند — تجربه جدیدی را امتحان کنید!',
+    userBullets: [
+      '🎮 بازی دوز اکنون یک حریف هوشمند واقعی دارد — سه سطح دشواری',
+      '🧠 حریف سطح سخت با محاسبه دقیق بازی می‌کند',
+      '✨ بازی چشمک کاملاً بازسازی شد — گروهی، نقش‌محور، جذاب‌تر از قبل',
+      '👥 چشمک حالا ۴ تا ۱۰ نفر را پشتیبانی می‌کند با نقش‌های مخفی',
+    ],
     features: [
       'دوز: CPU واقعی با سه سطح — آسان (تصادفی+بلاک)، متوسط (heuristic)، سخت (minimax)',
       'دوز: state machine کامل PLAYER_TURN→CPU_THINKING→CPU_MOVE با delay ۴۰۰-۹۰۰ms',
@@ -54,6 +65,12 @@ export const RELEASE_HISTORY: ReleaseNote[] = [
     releaseDate: '2026-09-30',
     status: 'live',
     summary: 'پنل ادمین ارتقا یافت: مدیریت اعتبارنامه GitHub، مرکز پیام به کاربران، مدیریت نسخه‌ها با ارسال اطلاع‌رسانی، گزارش فعالیت، RBAC و مرکز اعلان کاربران.',
+    userSummary: 'چند بهبود مهم در تجربه کلی اپلیکیشن انجام شد.',
+    userBullets: [
+      '🔔 اعلان‌های جدید — از آخرین اخبار بازی‌ها مطلع شوید',
+      '⚡ پایداری و سرعت اپلیکیشن بهتر شده',
+      '✨ تجربه کلی استفاده روان‌تر شده',
+    ],
     features: [
       'RBAC — ۴ نقش مدیریتی: SYSTEM_ADMIN، CONTENT_ADMIN، SUPPORT_ADMIN، VIEWER',
       'مدیریت اعتبارنامه GitHub با ذخیره‌سازی امن (sessionStorage، بدون localStorage)',

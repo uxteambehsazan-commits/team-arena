@@ -55,9 +55,10 @@ const AVATAR_EMOJIS = ['😊','🦊','🐼','🦁','🐯','🦋','🐸','🐧','
 
 // ── Component ──────────────────────────────────────────────────────────────────
 interface Props {
-  // From mission system — not used in local mode but kept for compatibility
   localPlayerId?: string
   onExit?: () => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any
 }
 
 export default function TeamChallenge({ onExit }: Props) {

@@ -15,6 +15,8 @@ export interface GameCapabilityMetadata {
   requiresRealtimeSync: boolean
   roles?: string[]
   winConditions?: string[]
+  supportsLocalDevice?: boolean
+  supportsCPU?: boolean
 }
 
 export interface PrivateMessage<T = unknown> {

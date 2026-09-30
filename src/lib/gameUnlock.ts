@@ -93,13 +93,7 @@ export const UNLOCK_RULES: GameUnlockRule[] = [
     unlockMessage: 'با رسیدن به سطح ۵ باز می‌شود',
     unlockConditionLabel: 'سطح ۵',
   },
-  {
-    gameKey: 'b-naghghashi',
-    type: 'completed_games',
-    requiredCompletedGames: 5,
-    unlockMessage: 'پس از ۵ بازی تکمیل‌شده باز می‌شود',
-    unlockConditionLabel: 'تکمیل ۵ بازی',
-  },
+  // b-naghghashi is in BEHSAZANI_STARTER — always unlocked, no rule needed
 ]
 
 // ── State shape ───────────────────────────────────────────────────────────────

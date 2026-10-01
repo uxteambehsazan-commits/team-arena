@@ -597,9 +597,9 @@ export default function Home({ dispatch, onOnlineCreate, onOnlineJoin, onShowSco
     const missionIdsFinal = getSelectedMissionIds()
     dispatch({ type: 'SET_ENABLED_MISSIONS', ids: missionIdsFinal.filter(id => { const m = MISSIONS_MAP[id]; return m && m.minPlayers <= 2 }) })
     dispatch({ type: 'SET_DIFFICULTY', difficulty })
-    dispatch({ type: 'CREATE_GAME', name: name.trim(), avatar: avatarStr, colorIndex: colorIdx })
+    dispatch({ type: 'CREATE_GAME', name: name.trim(), avatar: avatarStr, colorIndex: colorIdx, gameMode: 'cpu' })
     setTimeout(() => {
-      dispatch({ type: 'ADD_PLAYER', name: 'هوش مصنوعی', avatar: '7', colorIndex: 1 })
+      dispatch({ type: 'ADD_PLAYER', name: 'هوش مصنوعی', avatar: '7', colorIndex: 1, isCPU: true })
       dispatch({ type: 'START_GAME' })
     }, 50)
   }

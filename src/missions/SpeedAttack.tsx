@@ -32,6 +32,8 @@ export default function SpeedAttack({ state, dispatch }: Props) {
   }, [state.speedTargets])
 
   function handleHit(isTarget: boolean) {
+    // Block human input when the current player is CPU
+    if (currentPlayer?.isCPU) return
     if (done) return
     const rt = (Date.now() - hitTimeRef.current) / 1000
     setFlash({ correct: isTarget, show: true })
@@ -89,17 +91,25 @@ export default function SpeedAttack({ state, dispatch }: Props) {
         )}
 
         {!done ? (
-          <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
-            {targets.map(t => (
-              <button
-                key={t.id}
-                onClick={() => handleHit(t.isTarget)}
-                className="btn-game aspect-square rounded-2xl text-4xl flex items-center justify-center glass-panel hover:scale-110 active:scale-90 transition-all"
-                style={{ border: '2px solid #CC222933' }}>
-                {t.emoji}
-              </button>
-            ))}
-          </div>
+          currentPlayer?.isCPU ? (
+            <div className="glass-panel rounded-2xl px-8 py-6 text-center animate-pulse w-full max-w-xs"
+              style={{ border: '2px solid #ffd60a33' }}>
+              <div className="text-4xl mb-2">🤖</div>
+              <p className="text-yellow-400 font-bold">CPU در حال بازی...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
+              {targets.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => handleHit(t.isTarget)}
+                  className="btn-game aspect-square rounded-2xl text-4xl flex items-center justify-center glass-panel hover:scale-110 active:scale-90 transition-all"
+                  style={{ border: '2px solid #CC222933' }}>
+                  {t.emoji}
+                </button>
+              ))}
+            </div>
+          )
         ) : (
           <div className="glass-panel rounded-2xl px-8 py-6 text-center animate-pop-in w-full max-w-xs">
             <div className="text-4xl mb-2">⏱️</div>

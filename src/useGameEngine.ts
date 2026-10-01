@@ -65,6 +65,7 @@ const initial: GameState = {
   nameFamilyState: null, oneWordState: null,
   aiDifficulty: 'easy' as const,
   lobbyCountdown: 0,
+  gameMode: undefined,
 }
 
 function getEnabledMissionsList(state: GameState) {
@@ -187,7 +188,7 @@ function reducer(state: GameState, action: GameAction): GameState {
         score: 0, missionScore: 0, rank: 0, ready: true,
         connected: true, totalResponseTime: 0, joinedAt: Date.now(),
       }
-      return { ...state, phase: 'LOBBY', players: [player], hostId: id }
+      return { ...state, phase: 'LOBBY', players: [player], hostId: id, gameMode: action.gameMode }
     }
 
     case 'ADD_PLAYER': {
@@ -197,6 +198,7 @@ function reducer(state: GameState, action: GameAction): GameState {
         id, name: action.name, avatar: action.avatar, colorIndex: action.colorIndex,
         score: 0, missionScore: 0, rank: 0, ready: false,
         connected: true, totalResponseTime: 0, joinedAt: Date.now(),
+        isCPU: action.isCPU ?? false,
       }
       return { ...state, players: [...state.players, player], hostId: state.hostId || id }
     }
@@ -582,7 +584,10 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case 'REPLAY': {
       const players = state.players.map(p => ({ ...p, score: 0, missionScore: 0, rank: 0, ready: false, totalResponseTime: 0 }))
-      return { ...initial, phase: 'LOBBY', players, hostId: state.hostId, enabledMissions: state.enabledMissions }
+      const base = { ...initial, phase: 'LOBBY' as const, players, hostId: state.hostId, enabledMissions: state.enabledMissions, aiDifficulty: state.aiDifficulty, gameMode: state.gameMode }
+      // CPU games skip the lobby — set countdown to 1 so the engine auto-starts in ~1s
+      if (state.gameMode === 'cpu') return { ...base, lobbyCountdown: 1 }
+      return base
     }
 
     case 'NEW_PLAYERS':

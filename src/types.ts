@@ -37,6 +37,7 @@ export interface Player {
   connected: boolean
   totalResponseTime: number
   joinedAt: number
+  isCPU?: boolean
 }
 
 export interface MemoryBoard {
@@ -128,6 +129,7 @@ export interface GameState {
   nameFamilyState: NameFamilyState | null
   oneWordState: OneWordState | null
   aiDifficulty: 'easy' | 'hard'
+  gameMode?: 'cpu' | 'local' | 'online'
 }
 
 export interface SpeedTarget {
@@ -139,8 +141,8 @@ export interface SpeedTarget {
 }
 
 export type GameAction =
-  | { type: 'CREATE_GAME'; name: string; avatar: string; colorIndex: number }
-  | { type: 'ADD_PLAYER'; name: string; avatar: string; colorIndex: number }
+  | { type: 'CREATE_GAME'; name: string; avatar: string; colorIndex: number; gameMode?: 'cpu' | 'local' | 'online' }
+  | { type: 'ADD_PLAYER'; name: string; avatar: string; colorIndex: number; isCPU?: boolean }
   | { type: 'REMOVE_PLAYER'; id: string }
   | { type: 'TOGGLE_READY'; id: string }
   | { type: 'START_GAME' }

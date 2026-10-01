@@ -23,6 +23,43 @@ export interface ReleaseNote {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: '3.12.0',
+    title: 'معماری CPU — تفکیک کامل CPU از Remote Player',
+    releaseDate: '2026-10-01',
+    status: 'live',
+    summary: 'CPU با یک فلگ isCPU type-safe شناسایی می‌شود. gameMode در GameState ثبت می‌شود. REPLAY در CPU mode از Lobby می‌گذرد. Human input در نوبت CPU block می‌شود. FastestFinger CPU-aware شد.',
+    userSummary: 'بازی‌های انفرادی با CPU حالا معماری جدا دارند — دوباره بازی مستقیم شروع می‌شود!',
+    userBullets: [
+      '🤖 «دوباره بازی» در بازی‌های CPU دیگر وارد Waiting Room نمی‌شود',
+      '🔒 در نوبت CPU، کاربر نمی‌تواند برای CPU بازی کند',
+      '🏗️ معماری CPU از Remote Player کاملاً جدا شد',
+      '🎯 شناسایی CPU با فلگ isCPU — نه اسم رشته‌ای',
+    ],
+    features: [
+      'Player.isCPU?: boolean — فلگ type-safe برای شناسایی CPU',
+      'GameState.gameMode: cpu | local | online — حفظ mode در کل چرخه بازی',
+      'CREATE_GAME action: gameMode field اضافه شد',
+      'ADD_PLAYER action: isCPU field اضافه شد',
+    ],
+    improvements: [
+      'REPLAY در CPU mode: lobbyCountdown=1 → auto-start بدون نمایش Lobby',
+      'useAI.ts: isCPU flag به‌جای p.name===AI_NAME (با fallback برای compatibility)',
+      'LogicBreaker: CPU turn → UI تصمیم‌گیری، Human input blocked',
+      'SpeedAttack: CPU turn → UI بازی CPU، Human input blocked',
+      'FastestFinger: press() — CPU button غیرقابل کلیک توسط انسان',
+      'Home.tsx: gameMode: cpu و isCPU: true هنگام شروع بازی CPU',
+    ],
+    bugFixes: [
+      'بعد از REPLAY در بازی CPU، وارد Waiting Room می‌شد',
+      'در LogicBreaker نوبت CPU، انسان می‌توانست برای CPU پاسخ بدهد',
+      'در SpeedAttack نوبت CPU، انسان می‌توانست برای CPU کلیک کند',
+      'در FastestFinger، انسان می‌توانست دکمه CPU را بزند',
+    ],
+    performance: [],
+    security: [],
+    knownIssues: [],
+  },
+  {
     version: '3.11.0',
     title: 'اصلاح CPU دوز + بهینه‌سازی چرخه بازی',
     releaseDate: '2026-10-01',

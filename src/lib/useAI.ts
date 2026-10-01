@@ -48,7 +48,8 @@ export function useAI(state: GameState, dispatch: React.Dispatch<GameAction>, is
 
   // Compute a key that changes only when the AI needs to reschedule.
   // Does NOT include timeLeft so TIMER_TICK doesn't retrigger the effect.
-  const aiPlayer = state.players.find(p => p.name === AI_NAME && p.connected)
+  // Prefer the type-safe isCPU flag; fall back to the legacy name string for older state snapshots
+  const aiPlayer = state.players.find(p => (p.isCPU === true || p.name === AI_NAME) && p.connected)
   const aiId = aiPlayer?.id ?? ''
   const enabledList = MISSIONS.filter(m => (state.enabledMissions ?? []).includes(m.id))
   const mId = enabledList[state.currentMissionIndex]?.id ?? ''

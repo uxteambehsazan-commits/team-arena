@@ -28,6 +28,8 @@ export default function LogicBreaker({ state, dispatch }: Props) {
   }, [state.phase, state.timeLeft])
 
   function choose(optIdx: number) {
+    // Block human input when it is the CPU player's turn
+    if (currentPlayer?.isCPU) return
     if (done || selected !== null) return
     setSelected(optIdx)
     const rt = (Date.now() - startTime.current) / 1000
@@ -76,23 +78,31 @@ export default function LogicBreaker({ state, dispatch }: Props) {
           )}
         </div>
 
-        {/* Options */}
-        <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
-          {q.options.map((opt, i) => {
-            const isThis = selected === i
-            const showCorrect = done && i === q.answer
-            const showWrong = done && isThis && i !== q.answer
-            return (
-              <button key={i} onClick={() => choose(i)} disabled={done || selected !== null}
-                className={`btn-game glass-panel rounded-2xl py-5 text-4xl border-2 transition-all disabled:cursor-not-allowed ${showCorrect ? 'border-green-400 bg-green-900/30 scale-105' : showWrong ? 'border-red-400 bg-red-900/30 animate-shake' : isThis ? 'border-yellow-400 bg-yellow-900/20' : 'border-purple-800/50 hover:border-purple-500'}`}
-                style={showCorrect ? { boxShadow: '0 0 20px #00ff88' } : {}}>
-                {opt}
-                {showCorrect && <div className="text-sm text-green-400 font-bold mt-1">✓ درست</div>}
-                {showWrong && <div className="text-sm text-red-400 font-bold mt-1">✗ اشتباه</div>}
-              </button>
-            )
-          })}
-        </div>
+        {/* Options — non-interactive when it's the CPU's turn */}
+        {currentPlayer?.isCPU && !done ? (
+          <div className="glass-panel rounded-2xl px-6 py-6 text-center w-full max-w-sm animate-pulse"
+            style={{ border: '2px solid #ffd60a33' }}>
+            <div className="text-4xl mb-2">🤖</div>
+            <p className="text-yellow-400 font-bold">CPU در حال تصمیم‌گیری...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
+            {q.options.map((opt, i) => {
+              const isThis = selected === i
+              const showCorrect = done && i === q.answer
+              const showWrong = done && isThis && i !== q.answer
+              return (
+                <button key={i} onClick={() => choose(i)} disabled={done || selected !== null || !!currentPlayer?.isCPU}
+                  className={`btn-game glass-panel rounded-2xl py-5 text-4xl border-2 transition-all disabled:cursor-not-allowed ${showCorrect ? 'border-green-400 bg-green-900/30 scale-105' : showWrong ? 'border-red-400 bg-red-900/30 animate-shake' : isThis ? 'border-yellow-400 bg-yellow-900/20' : 'border-purple-800/50 hover:border-purple-500'}`}
+                  style={showCorrect ? { boxShadow: '0 0 20px #00ff88' } : {}}>
+                  {opt}
+                  {showCorrect && <div className="text-sm text-green-400 font-bold mt-1">✓ درست</div>}
+                  {showWrong && <div className="text-sm text-red-400 font-bold mt-1">✗ اشتباه</div>}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {done && (
           <div className={`text-center font-display text-2xl font-black animate-pop-in ${isCorrect ? 'text-green-400' : 'text-red-400'}`}

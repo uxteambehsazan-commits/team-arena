@@ -16,6 +16,9 @@ export default function FastestFinger({ state, dispatch }: Props) {
     .sort((a, b) => a.responseTime - b.responseTime)
 
   function press(playerId: string) {
+    const player = state.players.find(p => p.id === playerId)
+    // Human cannot press on behalf of a CPU player
+    if (player?.isCPU) return
     if (state.submitted[playerId]) return
     dispatch({ type: 'FASTEST_PRESS', playerId, timestamp: Date.now() })
   }

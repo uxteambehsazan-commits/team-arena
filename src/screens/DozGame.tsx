@@ -125,6 +125,9 @@ export default function DozGame({ onExit }: Props) {
   // roundId guards against stale timeouts firing after restart
   const roundIdRef = useRef(0)
   const timerRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // boardRef always holds the latest board — prevents stale closure in the CPU timeout
+  const boardRef   = useRef<Cell[]>(Array(9).fill(null))
+  boardRef.current = board
 
   // ── CPU turn via effect — fires whenever turn becomes 'cpu' ──────────────
   useEffect(() => {
@@ -133,15 +136,16 @@ export default function DozGame({ onExit }: Props) {
     const myRound = roundIdRef.current
     setThinking(true)
 
-    const delay = 400 + Math.random() * 500
+    const delay = 400 + Math.random() * 600
     timerRef.current = setTimeout(() => {
-      // Guard: discard if a restart happened since this timeout was scheduled
       if (roundIdRef.current !== myRound) return
 
-      const move = getCpuMove(board, CPU_SYMBOL, PLAYER_SYMBOL, difficulty)
+      // Always read from ref so we never act on a stale board snapshot
+      const currentBoard = boardRef.current
+      const move = getCpuMove(currentBoard, CPU_SYMBOL, PLAYER_SYMBOL, difficulty)
       if (move === -1) { setThinking(false); return }
 
-      const next = [...board]
+      const next = [...currentBoard]
       next[move] = CPU_SYMBOL
       setBoard(next)
       setLastMove(move)
@@ -165,10 +169,6 @@ export default function DozGame({ onExit }: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn, phase])
-  // NOTE: intentionally excludes `board` and `difficulty` from deps.
-  // The effect fires exactly once when turn flips to 'cpu'; board and
-  // difficulty are read at that point via closure — they are current because
-  // the effect runs after the state that changed turn has committed.
 
   // ── Player move ───────────────────────────────────────────────────────────
   function handleCellClick(idx: number) {
@@ -315,14 +315,14 @@ export default function DozGame({ onExit }: Props) {
       <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'space-between',padding:'16px 20px 24px',gap:16,overflow:'auto'}}>
 
         {/* Players row */}
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',maxWidth:380}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',alignItems:'center',gap:12,width:'100%',maxWidth:380}}>
           {/* Human player */}
           <div style={{
             display:'flex',flexDirection:'column',alignItems:'center',gap:6,
             padding:'12px 16px',borderRadius:16,
             background: turn==='player' && phase==='playing' ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.03)',
             border:`1.5px solid ${turn==='player' && phase==='playing' ? '#4ade8055' : '#2e2e32'}`,
-            transition:'all 0.25s',minWidth:90,
+            transition:'all 0.25s',minWidth:90,justifySelf:'end',
           }}>
             <div style={{fontSize:36}}>😊</div>
             <p style={{color:'#fff',fontWeight:900,fontSize:13,margin:0,textAlign:'center',maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -352,7 +352,7 @@ export default function DozGame({ onExit }: Props) {
             padding:'12px 16px',borderRadius:16,
             background: turn==='cpu' && phase==='playing' ? 'rgba(248,113,113,0.08)' : 'rgba(255,255,255,0.03)',
             border:`1.5px solid ${turn==='cpu' && phase==='playing' ? '#f8717155' : '#2e2e32'}`,
-            transition:'all 0.25s',minWidth:90,
+            transition:'all 0.25s',minWidth:90,justifySelf:'start',
           }}>
             <div style={{fontSize:36,position:'relative'}}>
               {cpuAvatar}

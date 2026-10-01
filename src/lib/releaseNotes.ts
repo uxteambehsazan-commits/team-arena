@@ -23,6 +23,38 @@ export interface ReleaseNote {
 
 export const RELEASE_HISTORY: ReleaseNote[] = [
   {
+    version: '3.11.0',
+    title: 'اصلاح CPU دوز + بهینه‌سازی چرخه بازی',
+    releaseDate: '2026-10-01',
+    status: 'live',
+    summary: 'رفع باگ اصلی CPU دوز (stale closure)، تراز VS/امتیاز، بهبود draw detection، اصلاح Loading State در کلمه ممنوعه، پنهان‌سازی جواب در یک کلمه چند سرنخ تا نوبت بازیکن دوم، و ارتقای نسخه.',
+    userSummary: 'CPU بازی دوز حالا واقعاً بازی می‌کند — و چند بهبود دیگر!',
+    userBullets: [
+      '🤖 CPU دوز اصلاح شد — حالا همیشه حرکت انجام می‌دهد',
+      '⚖️ نمایش امتیاز در دوز تراز شد',
+      '🤝 در صورت تساوی (۰-۰)، CPU برنده اعلام نمی‌شود',
+      '🧩 بازی کلمه ممنوعه دیگر صفحه سفید نشان نمی‌دهد',
+      '🔒 جواب «یک کلمه، چند سرنخ» تا نوبت بازیکن دوم پنهان می‌ماند',
+    ],
+    features: [],
+    improvements: [
+      'DozGame: boardRef pattern برای جلوگیری از stale closure در CPU useEffect',
+      'DozGame: grid layout 1fr auto 1fr برای تراز صحیح کارت‌های بازیکن',
+      'WinnerCeremony: isDraw detection برای نمایش مساوی به‌جای برنده کاذب',
+      'LogicBreaker: loading state به‌جای null return در هنگام آماده‌سازی سوال',
+      'OneWordClues: پنهان‌سازی جواب از بازیکن دوم در Local mode',
+    ],
+    bugFixes: [
+      'CPU دوز بعد از حرکت بازیکن حرکت نمی‌کرد (useEffect stale closure)',
+      'در تساوی ۰-۰ سیستم CPU را برنده اعلام می‌کرد',
+      'کلمه ممنوعه در برخی حالت‌ها صفحه سفید نشان می‌داد',
+      'جواب «یک کلمه، چند سرنخ» قبل از نوبت بازیکن دوم نمایش داده می‌شد',
+    ],
+    performance: [],
+    security: [],
+    knownIssues: [],
+  },
+  {
     version: '3.10.0',
     title: 'دوز با CPU واقعی + بازسازی کامل چشمک',
     releaseDate: '2026-09-30',

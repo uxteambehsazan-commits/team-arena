@@ -331,17 +331,21 @@ function reducer(state: GameState, action: GameAction): GameState {
 
     case 'SPEED_HIT': {
       if (state.submitted[action.playerId]) return state
-      const base = action.isCorrect ? 100 : -25
+      // Accumulate score across multiple hits within the same turn
+      const prev = state.playerResults[action.playerId]
+      const prevScore = prev?.missionScore ?? 0
       const enabledList2 = getEnabledMissionsList(state)
       const m2 = enabledList2[state.currentMissionIndex]
       const timerLen = m2?.timer ?? 15
-      const bonus = action.isCorrect ? Math.round(Math.max(0, 100 * (1 - action.responseTime / timerLen))) : 0
-      const ms = base + bonus
-      const res = { ...state.playerResults, [action.playerId]: { playerId: action.playerId, missionScore: ms, detail: action.isCorrect ? `درست! +${base} بونوس+${bonus}` : `اشتباه`, responseTime: action.responseTime } }
-      const sub = { ...state.submitted, [action.playerId]: true }
-      const s2 = { ...state, submitted: sub, playerResults: res }
-      if (state.currentTurnIndex + 1 >= state.turnOrder.length) return doEndMission(s2)
-      return { ...s2, phase: 'TURN_TRANSITION' }
+      const base = action.isCorrect ? 100 : -25
+      const bonus = action.isCorrect ? Math.round(Math.max(0, 80 * (1 - action.responseTime / Math.max(timerLen, 1)))) : 0
+      const newScore = Math.max(-200, prevScore + base + bonus)
+      const res = {
+        ...state.playerResults,
+        [action.playerId]: { playerId: action.playerId, missionScore: newScore, detail: `${newScore >= 0 ? '+' : ''}${newScore}`, responseTime: action.responseTime },
+      }
+      // Regenerate targets for the next hit in this turn; timer auto-ends the turn
+      return { ...state, playerResults: res, speedTargets: generateSpeedTargets() }
     }
 
     case 'NAME_FAMILY_TYPE': {

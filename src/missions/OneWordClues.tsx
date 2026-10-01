@@ -105,9 +105,16 @@ export default function OneWordClues({ state, dispatch, localPlayerId }: Props) 
             <p className="font-display text-xl font-black text-white">
               {state.players.find(p => p.id === winner)?.name} برنده شد!
             </p>
-            <p className="text-2xl font-black mt-1" style={{ color: '#ffd60a' }}>
-              جواب: {question.answer}
-            </p>
+            {/* Hide answer until current player has submitted — prevents Player 2 from cheating in local mode */}
+            {(mySubmitted || myWrong >= 3 || !isLocalMode) ? (
+              <p className="text-2xl font-black mt-1" style={{ color: '#ffd60a' }}>
+                جواب: {question.answer}
+              </p>
+            ) : (
+              <p className="text-sm mt-2" style={{ color: '#9a9b9e' }}>
+                گوشی رو بده نفر بعدی — جواب بعد از حدس اون نشون داده میشه
+              </p>
+            )}
           </div>
         )}
 

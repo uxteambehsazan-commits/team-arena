@@ -25,6 +25,7 @@ export default function WinnerCeremony({ state, dispatch, onShowScores, onShowFe
   const xpRef = useRef(false)
 
   const ranked = [...state.players].sort((a, b) => b.score - a.score || a.totalResponseTime - b.totalResponseTime)
+  const isDraw = ranked.length >= 2 && ranked[0].score === ranked[1].score
   const winner = ranked[0]
   const second = ranked[1]
   const third = ranked[2]
@@ -133,10 +134,21 @@ export default function WinnerCeremony({ state, dispatch, onShowScores, onShowFe
         {/* Winner label */}
         {reveal >= 3 && winner && (
           <div className="animate-pop-in text-center mt-5">
-            <div className="font-display text-2xl font-black text-yellow-400" style={{ textShadow: '0 0 24px #ffd60a' }}>
-              قهرمان دورهمی! 👑
-            </div>
-            <p className="text-xs mt-1" style={{ color: '#9a9b9e' }}>مهم‌تر از امتیاز، لحظه‌هایی بود که کنار هم ساختیم 🤝</p>
+            {isDraw ? (
+              <>
+                <div className="font-display text-2xl font-black" style={{ color: '#a0a0a8', textShadow: '0 0 24px #a0a0a844' }}>
+                  🤝 مساوی!
+                </div>
+                <p className="text-xs mt-1" style={{ color: '#9a9b9e' }}>همه برنده‌اید — لحظه‌های خوب کنار هم!</p>
+              </>
+            ) : (
+              <>
+                <div className="font-display text-2xl font-black text-yellow-400" style={{ textShadow: '0 0 24px #ffd60a' }}>
+                  قهرمان دورهمی! 👑
+                </div>
+                <p className="text-xs mt-1" style={{ color: '#9a9b9e' }}>مهم‌تر از امتیاز، لحظه‌هایی بود که کنار هم ساختیم 🤝</p>
+              </>
+            )}
           </div>
         )}
       </div>

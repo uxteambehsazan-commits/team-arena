@@ -36,7 +36,15 @@ export default function LogicBreaker({ state, dispatch }: Props) {
     }, 600)
   }
 
-  if (!q) return null
+  if (!q) return (
+    <div className="h-full flex flex-col">
+      <GameHUD state={state} />
+      <div className="flex-1 flex flex-col items-center justify-center gap-4">
+        <div className="text-5xl animate-pulse">🧩</div>
+        <p className="text-gray-400 text-sm">در حال آماده‌سازی سوال...</p>
+      </div>
+    </div>
+  )
 
   const isCorrect = selected !== null && selected === q.answer
   const isWrong = selected !== null && selected !== q.answer

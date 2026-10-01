@@ -11,22 +11,88 @@ interface Props {
 }
 
 const SYMBOLS = ['X', 'O', '△', '□', '★', '◆', '♠', '♣']
+const WIN_LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]]
+
+// ── CPU AI for the FINAL (Doz) mission ───────────────────────────────────────
+// Uses medium-strength heuristic: win → block → center → corner → random.
+// Board cells contain player IDs (not 'X'/'O'), so we pass cpuId/humanId.
+function cpuPickCell(board: (string | null)[], cpuId: string, humanId: string): number {
+  const empty = board.map((c, i) => c === null ? i : -1).filter(i => i >= 0)
+  if (!empty.length) return -1
+
+  const wins = (id: string) => {
+    for (const [a, b, c] of WIN_LINES) {
+      if (board[a] === id && board[b] === id && board[c] === id) return true
+    }
+    return false
+  }
+
+  // Winning move
+  for (const i of empty) {
+    const b = [...board]; b[i] = cpuId
+    let win = false
+    for (const [a, bv, c] of WIN_LINES) { if (b[a] === cpuId && b[bv] === cpuId && b[c] === cpuId) { win = true; break } }
+    if (win) return i
+  }
+  // Block human win
+  for (const i of empty) {
+    const b = [...board]; b[i] = humanId
+    let win = false
+    for (const [a, bv, c] of WIN_LINES) { if (b[a] === humanId && b[bv] === humanId && b[c] === humanId) { win = true; break } }
+    if (win) return i
+  }
+  // Center
+  if (board[4] === null) return 4
+  // Corners
+  const corners = [0, 2, 6, 8].filter(i => board[i] === null)
+  if (corners.length) return corners[Math.floor(Math.random() * corners.length)]
+  // Random
+  return empty[Math.floor(Math.random() * empty.length)]
+}
 
 export default function DozMission({ state, dispatch, localPlayerId }: Props) {
   const doz = state.dozState
   const activePlayers = state.players.filter(p => p.connected)
   const ended = state.timeLeft === 0 || state.phase !== 'PLAYING'
 
-  // Auto-reset board after a round ends (roundWinner set but game not over)
+  const cpuPlayer = activePlayers.find(p => p.isCPU)
+  const humanPlayer = activePlayers.find(p => !p.isCPU)
+
+  // Stable ref so the CPU timeout always reads the latest state
+  const dozRef = useRef(doz)
+  dozRef.current = doz
+
+  // ── CPU AI turn ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!cpuPlayer || !doz) return
+    if (doz.currentPlayerId !== cpuPlayer.id) return
+    if (doz.roundWinner !== null || ended) return
+
+    const cpuId = cpuPlayer.id
+    const humanId = humanPlayer?.id ?? ''
+
+    const delay = 450 + Math.random() * 550
+    const timer = setTimeout(() => {
+      const currentDoz = dozRef.current
+      if (!currentDoz || currentDoz.currentPlayerId !== cpuId) return
+      if (currentDoz.roundWinner !== null) return
+      const move = cpuPickCell(currentDoz.board, cpuId, humanId)
+      if (move === -1) return
+      dispatch({ type: 'DOZ_PLACE_CELL', playerId: cpuId, cellIndex: move })
+    }, delay)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doz?.currentPlayerId, doz?.roundWinner, ended])
+
+  // ── Auto-reset board after a round ends ───────────────────────────────────
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => {
     if (!doz || doz.roundWinner === null) return
-    // Check if game is over (a player has 2+ wins)
     const topWins = Math.max(...Object.values(doz.scores))
     if (topWins >= 2 || ended) return
     clearTimeout(resetTimerRef.current)
     resetTimerRef.current = setTimeout(() => {
-      // Reset board for next round by dispatching a reset action
       dispatch({ type: 'DOZ_RESET_ROUND' } as any)
     }, 1800)
     return () => clearTimeout(resetTimerRef.current)
@@ -48,18 +114,13 @@ export default function DozMission({ state, dispatch, localPlayerId }: Props) {
   const isMyTurn = localPlayerId ? doz.currentPlayerId === localPlayerId : true
 
   function handleCellClick(idx: number) {
+    // Block human from placing when it is the CPU's turn or cell is taken
     if (!isMyTurn || board[idx] !== null || doz!.roundWinner !== null || ended) return
-    const pid = localPlayerId ?? (activePlayers[0]?.id ?? '')
+    if (currentPlayer?.isCPU) return
+    const pid = localPlayerId ?? (activePlayers.find(p => !p.isCPU)?.id ?? activePlayers[0]?.id ?? '')
     dispatch({ type: 'DOZ_PLACE_CELL', playerId: pid, cellIndex: idx })
   }
 
-  // Player display order: first 2 active players
-  const p1 = activePlayers[0]
-  const p2 = activePlayers[1]
-  const p1Color = p1 ? PLAYER_COLORS[p1.colorIndex % PLAYER_COLORS.length] : PLAYER_COLORS[0]
-  const p2Color = p2 ? PLAYER_COLORS[p2.colorIndex % PLAYER_COLORS.length] : PLAYER_COLORS[1]
-
-  // Assign symbols per player index
   function symbolFor(playerId: string) {
     const idx = activePlayers.findIndex(p => p.id === playerId)
     return SYMBOLS[idx] ?? '?'
@@ -74,43 +135,63 @@ export default function DozMission({ state, dispatch, localPlayerId }: Props) {
     ? activePlayers.find(p => p.id === doz.roundWinner)
     : null
 
+  // p1 = right side (index 0), p2 = left side (index 1) — RTL layout
+  const p1 = activePlayers[0]
+  const p2 = activePlayers[1]
+
+  function PlayerCard({ player, symIdx }: { player: typeof p1; symIdx: number }) {
+    if (!player) return <div />
+    const pc = PLAYER_COLORS[player.colorIndex % PLAYER_COLORS.length]
+    const isActive = doz!.currentPlayerId === player.id && doz!.roundWinner === null
+    const sym = SYMBOLS[symIdx] ?? '?'
+    const wins = doz!.scores[player.id] ?? 0
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <div className="relative">
+          <img src={avatarSrc(player.avatar)} alt=""
+            className="w-12 h-12 rounded-full object-cover transition-all"
+            style={{
+              border: `3px solid ${isActive ? pc.bg : pc.bg + '44'}`,
+              boxShadow: isActive ? `0 0 14px ${pc.bg}88` : 'none',
+            }} />
+          <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-black text-white"
+            style={{ background: pc.bg }}>{sym}</span>
+        </div>
+        <span className="text-xs font-bold text-white truncate max-w-[72px] text-center">{player.name}</span>
+        <span className="font-display text-3xl font-black" style={{ color: pc.light }}>{wins}</span>
+      </div>
+    )
+  }
+
   return (
     <div className="h-full flex flex-col" dir="rtl">
       <GameHUD state={state} />
 
       <div className="flex-1 flex flex-col items-center justify-between p-4 gap-3 overflow-hidden">
 
-        {/* Score header — show all players */}
-        <div className="w-full max-w-sm flex items-center justify-between flex-shrink-0">
-          {activePlayers.slice(0, 2).map((p, i) => {
-            const pc = PLAYER_COLORS[p.colorIndex % PLAYER_COLORS.length]
-            const isActive = doz.currentPlayerId === p.id && doz.roundWinner === null
-            const sym = SYMBOLS[i] ?? '?'
-            const wins = doz.scores[p.id] ?? 0
-            return (
-              <div key={p.id} className="flex flex-col items-center gap-1">
-                <div className="relative">
-                  <img src={avatarSrc(p.avatar)} alt=""
-                    className="w-12 h-12 rounded-full object-cover transition-all"
-                    style={{
-                      border: `3px solid ${isActive ? pc.bg : pc.bg + '44'}`,
-                      boxShadow: isActive ? `0 0 14px ${pc.bg}88` : 'none',
-                    }} />
-                  <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-black text-white"
-                    style={{ background: pc.bg }}>{sym}</span>
-                </div>
-                <span className="text-xs font-bold text-white truncate max-w-[72px]">{p.name}</span>
-                <span className="font-display text-3xl font-black" style={{ color: pc.light }}>{wins}</span>
-              </div>
-            )
-          })}
+        {/* Score header — grid keeps VS centred regardless of name lengths */}
+        <div className="w-full max-w-sm flex-shrink-0" style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr auto 1fr',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          {/* In RTL grid: column 1 = rightmost → p1 */}
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <PlayerCard player={p1} symIdx={0} />
+          </div>
 
-          {/* Center VS + draws */}
+          {/* Centre column: VS + draws */}
           <div className="flex flex-col items-center gap-1">
             {doz.draws > 0 && (
               <span className="text-xs font-bold" style={{ color: '#6D6E71' }}>مساوی: {doz.draws}</span>
             )}
             <span className="font-display text-2xl font-black" style={{ color: '#3a3a3e' }}>VS</span>
+          </div>
+
+          {/* Column 3 = leftmost → p2 */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <PlayerCard player={p2} symIdx={1} />
           </div>
         </div>
 
@@ -138,7 +219,8 @@ export default function DozMission({ state, dispatch, localPlayerId }: Props) {
           {board.map((cell, idx) => {
             const isWinCell = doz.winLine?.includes(idx) ?? false
             const cellColor = cell ? colorFor(cell) : null
-            const canClick = isMyTurn && cell === null && doz.roundWinner === null && !ended
+            const isCpuTurn = currentPlayer?.isCPU
+            const canClick = isMyTurn && !isCpuTurn && cell === null && doz.roundWinner === null && !ended
             return (
               <button
                 key={idx}
@@ -180,9 +262,15 @@ export default function DozMission({ state, dispatch, localPlayerId }: Props) {
               })()}
             </p>
           ) : doz.roundWinner === null ? (
-            <p className="text-sm font-bold transition-colors" style={{ color: currentColor.light }}>
-              {isMyTurn ? '→ نوبت توئه' : `⏳ نوبت ${currentPlayer?.name ?? '...'}`}
-            </p>
+            currentPlayer?.isCPU ? (
+              <p className="text-sm font-bold animate-pulse" style={{ color: '#ffd60a' }}>
+                🤖 CPU در حال فکر کردن...
+              </p>
+            ) : (
+              <p className="text-sm font-bold transition-colors" style={{ color: currentColor.light }}>
+                {isMyTurn ? '→ نوبت توئه' : `⏳ نوبت ${currentPlayer?.name ?? '...'}`}
+              </p>
+            )
           ) : (
             <p className="text-xs" style={{ color: '#6D6E71' }}>⏳ آماده برای دور بعد...</p>
           )}
